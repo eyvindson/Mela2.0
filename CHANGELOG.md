@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.6] - 2025-12-16
+
+### Added
+
+- Added new dynamic parameters feature with lookup table  #MELA2-28
+
 ## [0.4.5] - 2025-12-16
 
 ### Fixed

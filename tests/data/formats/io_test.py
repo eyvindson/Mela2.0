@@ -1,15 +1,19 @@
 import csv
 import unittest
 from io import StringIO
-
+from unittest.mock import Mock
 import numpy as np
-from lukefi.metsi.data.formats.io_utils import *
-from lukefi.metsi.data.vector_model import ReferenceTrees, TreeStrata
+from lukefi.metsi.app.app_types import ExportableContainer
 from lukefi.metsi.data.vectorize import vectorize
-from tests.data.test_util import ConverterTestSuite, ForestBuilderTestBench
-from lukefi.metsi.data.formats.io_utils import c_var_rst_row
+from lukefi.metsi.data.formats.io_utils import (
+    c_var_rst_row,
+    rst_float,
+    rst_forest_stand_rows,
+    stands_to_rst_content,
+    stands_to_csv_content,
+    csv_content_to_stands)
 from lukefi.metsi.data.model import ForestStand
-
+from tests.data.test_util import ConverterTestSuite, ForestBuilderTestBench
 vmi13_builder = ForestBuilderTestBench.vmi13_builder()
 
 
@@ -23,7 +27,7 @@ class TestCVarRstRow(unittest.TestCase):
             reference_trees_pre_vec=[],
             tree_strata_pre_vec=[]
         )
-        self.mock_stand.get_value_list = lambda cvar_decl: [1.23, 4.56, 7.89]  # Mock method
+        self.mock_stand.get_value_list = Mock(return_value=[1.23, 4.56, 7.89])
 
     def test_c_var_rst_row(self):
         cvar_decl = ["var1", "var2", "var3"]
@@ -150,12 +154,17 @@ class IoUtilsTest(ConverterTestSuite):
 
             stands_expected = vmi13_stands[i].__dict__
             stands_actual = stands_from_csv[i].__dict__
-            stands_expected['reference_trees'] = None
-            stands_expected['tree_strata'] = None
-            stands_actual['reference_trees'] = None
-            stands_actual['tree_strata'] = None
-            stands_expected['reference_trees_soa'] = None
-            stands_expected['tree_strata_soa'] = None
-            stands_actual['reference_trees_soa'] = None
-            stands_actual['tree_strata_soa'] = None
+
+            # Ignore all tree containers (old and new names)
+            for key in [
+                "reference_trees",
+                "tree_strata",
+                "reference_trees_soa",
+                "tree_strata_soa",
+                "reference_trees_pre_vec",
+                "tree_strata_pre_vec",
+            ]:
+                stands_expected[key] = None
+                stands_actual[key] = None
+
             self.assertTrue(stands_expected == stands_actual)

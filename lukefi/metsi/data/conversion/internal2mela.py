@@ -1,4 +1,5 @@
 from copy import copy
+import numpy as np
 from lukefi.metsi.data.model import ForestStand, ReferenceTree
 from lukefi.metsi.data.enums.mela import (
     MelaOwnerCategory,
@@ -225,41 +226,28 @@ def mela_stand(stand: ForestStand) -> ForestStand:
     result.geo_location = copy(stand.geo_location)
     result.area_weight_factors = copy(stand.area_weight_factors)
     result = apply_mappers(result, *default_mela_stand_mappers)
-    result.reference_trees_pre_vec = list(map(mela_tree, result.reference_trees_pre_vec))
-    for tree in result.reference_trees_pre_vec:
-        tree.stand = result
-    result.tree_strata_pre_vec = list(map(mela_stratum, result.tree_strata_pre_vec))
-    for stratum in result.tree_strata_pre_vec:
-        stratum.stand = result
+
     # Some  fixed RST spesific classifier conversions TODO: find a better place for these.
     # stand level
     result.forestry_centre_id = (-1 if result.forestry_centre_id is None
                                  else result.forestry_centre_id)
     result.municipality_id = (-1 if result.municipality_id is None
                               else result.municipality_id)
-    result.soil_peatland_category = (0 if result.soil_peatland_category is None
-                                     else result.soil_peatland_category.value)
-    result.site_type_category = (0 if result.site_type_category is None
-                                 else result.site_type_category.value)
-    result.drainage_category = (0 if result.drainage_category is None
-                                else result.drainage_category.value)
+
     # tree level
-    for t in result.reference_trees_pre_vec:
-        t.saw_log_volume_reduction_factor = (
-            -1
-            if t.saw_log_volume_reduction_factor is None
-            else t.saw_log_volume_reduction_factor
-        )
-        t.species = 0 if t.species is None else t.species.value
-    # strata level
-    for s in result.tree_strata_pre_vec:
-        s.species = 0 if s.species is None else s.species.value
-        s.storey = 0 if s.storey is None else s.storey.value
-        # all None values to -1
-        rsts_default = -1
-        for k, v in s.__dict__.items():
-            if v is None:
-                setattr(s, k, rsts_default)
+    rt = copy(result.reference_trees)
+
+    if rt.size:
+        if rt.saw_log_volume_reduction_factor is not None:
+            rt.saw_log_volume_reduction_factor = rt.saw_log_volume_reduction_factor.copy()
+            np.nan_to_num(rt.saw_log_volume_reduction_factor, copy=False, nan=-1.0)
+
+        if rt.species is not None:
+            # np.where returns a new array anyway, so original won't be mutated
+            rt.species = np.where(rt.species == -1, 0, rt.species).astype(np.int32, copy=False)
+
+    result.reference_trees = rt
+
     return result
 
 

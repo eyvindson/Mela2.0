@@ -333,7 +333,4 @@ def generate_reference_trees(
 
     stand.tree_strata = VectorTreeStrata()
 
-    if hasattr(stand, "tree_strata_pre_vec"):
-        stand.tree_strata_pre_vec = []
-
     return vec

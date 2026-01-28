@@ -3,7 +3,6 @@ from lukefi.metsi.domain.forestry_types import StandList
 from lukefi.metsi.domain.utils.filter import applyfilter
 from lukefi.metsi.forestry.preprocessing import tree_generation
 from lukefi.metsi.forestry.preprocessing.coordinate_conversion import convert_location_to_ykj, CRS
-from lukefi.metsi.data.vectorize import vectorize
 from lukefi.metsi.app.utils import MetsiException
 
 
@@ -128,5 +127,4 @@ __all__ = ['preproc_filter',
            'compute_location_metadata',
            'generate_reference_trees',
            'scale_area_weight',
-           'convert_coordinates',
-           'vectorize']
+           'convert_coordinates']

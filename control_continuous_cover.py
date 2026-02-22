@@ -2,12 +2,12 @@ from lukefi.metsi.domain.conditions import TimePoints
 from lukefi.metsi.domain.forestry_types import ForestCondition
 from lukefi.metsi.domain.natural_processes.grow_acta import grow_acta_fn
 from lukefi.metsi.domain.pre_ops import generate_reference_trees, preproc_filter, scale_area_weight
-from lukefi.metsi.domain.forestry_treatments.regeneration import regeneration
-from lukefi.metsi.domain.forestry_treatments.soil_surface_preparation import soil_surface_preparation
 from lukefi.metsi.sim.generators import Alternatives, Event, Sequence
 from lukefi.metsi.sim.sim_configuration import Transition
 from lukefi.metsi.sim.simulation_instruction import SimulationInstruction
 from lukefi.metsi.sim.treatment import do_nothing
+
+from user_events import FirstThinningMineralSoils, Harvest20percent, MarkRetentionTrees, Tracks
 
 
 control_structure = {
@@ -26,45 +26,44 @@ control_structure = {
         }],
     },
     "simulation_instructions": [
-        # small repeated interventions, 5*5*5*5 = 625 portfolios
+        # Frequent small interventions (5 x 5 x 5 x 4 = 500 portfolios).
         SimulationInstruction(
             conditions=[TimePoints([2025])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"cc_2025_wait"}),
-                Event(treatment=soil_surface_preparation, tags={"cc_2025_mound"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 400.0, "height": 0.6, "biological_age": 2.0, "type": "artificial"}, tags={"cc_2025_light_pine"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 400.0, "height": 0.6, "biological_age": 2.0, "type": "artificial"}, tags={"cc_2025_light_spruce"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 500.0, "height": 0.6, "biological_age": 2.0, "type": "artificial"}, tags={"cc_2025_mound_pine"})]),
+                Event(treatment=do_nothing, tags={"ccf_2025_none"}),
+                Tracks(tags={"ccf_2025_tracks"}),
+                Harvest20percent(tags={"ccf_2025_20pct"}),
+                MarkRetentionTrees(tags={"ccf_2025_retention"}),
+                FirstThinningMineralSoils(tags={"ccf_2025_structural"}),
             ])],
         ),
         SimulationInstruction(
             conditions=[TimePoints([2035])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"cc_2035_wait"}),
-                Event(treatment=soil_surface_preparation, tags={"cc_2035_mound"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 350.0, "height": 0.7, "biological_age": 3.0, "type": "artificial"}, tags={"cc_2035_pine_fill"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 350.0, "height": 0.7, "biological_age": 3.0, "type": "artificial"}, tags={"cc_2035_spruce_fill"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 500.0, "height": 0.7, "biological_age": 3.0, "type": "artificial"}, tags={"cc_2035_mound_spruce"})]),
+                Event(treatment=do_nothing, tags={"ccf_2035_none"}),
+                Tracks(tags={"ccf_2035_tracks"}),
+                Harvest20percent(tags={"ccf_2035_20pct"}),
+                MarkRetentionTrees(tags={"ccf_2035_retention"}),
+                Sequence([Tracks(tags={"ccf_2035_tracks"}), MarkRetentionTrees(tags={"ccf_2035_retention"})]),
             ])],
         ),
         SimulationInstruction(
             conditions=[TimePoints([2045])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"cc_2045_wait"}),
-                Event(treatment=soil_surface_preparation, tags={"cc_2045_mound"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 300.0, "height": 0.8, "biological_age": 4.0, "type": "artificial"}, tags={"cc_2045_pine_fill"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 300.0, "height": 0.8, "biological_age": 4.0, "type": "artificial"}, tags={"cc_2045_spruce_fill"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 450.0, "height": 0.8, "biological_age": 4.0, "type": "artificial"}, tags={"cc_2045_mound_pine"})]),
+                Event(treatment=do_nothing, tags={"ccf_2045_none"}),
+                Tracks(tags={"ccf_2045_tracks"}),
+                Harvest20percent(tags={"ccf_2045_20pct"}),
+                MarkRetentionTrees(tags={"ccf_2045_retention"}),
+                Sequence([Harvest20percent(tags={"ccf_2045_20pct"}), MarkRetentionTrees(tags={"ccf_2045_retention"})]),
             ])],
         ),
         SimulationInstruction(
             conditions=[TimePoints([2055])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"cc_2055_wait"}),
-                Event(treatment=soil_surface_preparation, tags={"cc_2055_mound"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 1, "stems_per_ha": 250.0, "height": 0.9, "biological_age": 5.0, "type": "artificial"}, tags={"cc_2055_pine_fill"}),
-                Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 250.0, "height": 0.9, "biological_age": 5.0, "type": "artificial"}, tags={"cc_2055_spruce_fill"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters={"origin": 2, "method": 2, "species": 2, "stems_per_ha": 400.0, "height": 0.9, "biological_age": 5.0, "type": "artificial"}, tags={"cc_2055_mound_spruce"})]),
+                Event(treatment=do_nothing, tags={"ccf_2055_none"}),
+                Tracks(tags={"ccf_2055_tracks"}),
+                Harvest20percent(tags={"ccf_2055_20pct"}),
+                MarkRetentionTrees(tags={"ccf_2055_retention"}),
             ])],
         ),
     ],

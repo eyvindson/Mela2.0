@@ -2,24 +2,12 @@ from lukefi.metsi.domain.conditions import TimePoints
 from lukefi.metsi.domain.forestry_types import ForestCondition
 from lukefi.metsi.domain.natural_processes.grow_acta import grow_acta_fn
 from lukefi.metsi.domain.pre_ops import generate_reference_trees, preproc_filter, scale_area_weight
-from lukefi.metsi.domain.forestry_treatments.regeneration import regeneration
-from lukefi.metsi.domain.forestry_treatments.soil_surface_preparation import soil_surface_preparation
 from lukefi.metsi.sim.generators import Alternatives, Event, Sequence
 from lukefi.metsi.sim.sim_configuration import Transition
 from lukefi.metsi.sim.simulation_instruction import SimulationInstruction
 from lukefi.metsi.sim.treatment import do_nothing
 
-
-def regen(species: int, stems: float, height: float = 0.7, age: float = 3.0):
-    return {
-        "origin": 2,
-        "method": 2,
-        "species": species,
-        "stems_per_ha": stems,
-        "height": height,
-        "biological_age": age,
-        "type": "artificial",
-    }
+from user_events import Harvest20percent, MarkRetentionTrees, Mounding, PlantingPines
 
 
 control_structure = {
@@ -29,7 +17,11 @@ control_structure = {
         "preprocessing_output_file": "prepro_regeneration_pathways",
         "simulation_output_file": "sim_regeneration_pathways",
     },
-    "preprocessing_operations": [scale_area_weight, generate_reference_trees, preproc_filter],
+    "preprocessing_operations": [
+        scale_area_weight,
+        generate_reference_trees,
+        preproc_filter,
+    ],
     "preprocessing_params": {
         generate_reference_trees: [{"n_trees": 10, "method": "weibull", "debug": False}],
         preproc_filter: [{
@@ -38,40 +30,36 @@ control_structure = {
         }],
     },
     "simulation_instructions": [
-        # 7 options at regeneration start
+        # Regeneration decision: six pathways.
         SimulationInstruction(
             conditions=[TimePoints([2030])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"rp_2030_wait"}),
-                Event(treatment=regeneration, static_parameters=regen(1, 1400.0), tags={"rp_2030_pine_1400"}),
-                Event(treatment=regeneration, static_parameters=regen(1, 2000.0), tags={"rp_2030_pine_2000"}),
-                Event(treatment=regeneration, static_parameters=regen(2, 1400.0), tags={"rp_2030_spruce_1400"}),
-                Event(treatment=regeneration, static_parameters=regen(2, 2000.0), tags={"rp_2030_spruce_2000"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters=regen(1, 1800.0), tags={"rp_2030_mound_pine"})]),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters=regen(2, 1800.0), tags={"rp_2030_mound_spruce"})]),
+                Event(treatment=do_nothing, tags={"regen_2030_none"}),
+                Harvest20percent(tags={"regen_2030_light_thin"}),
+                Sequence([MarkRetentionTrees(tags={"regen_2030_retention"}), Harvest20percent(tags={"regen_2030_retention_plus_thin"})]),
+                Sequence([Mounding(tags={"regen_2030_mound"}), PlantingPines(tags={"regen_2030_plant_pine"})]),
+                Sequence([MarkRetentionTrees(tags={"regen_2030_retention"}), Mounding(tags={"regen_2030_mound"}), PlantingPines(tags={"regen_2030_plant"})]),
+                Sequence([Mounding(tags={"regen_2030_mound"}), PlantingPines(parameters={"species": 2, "stems_per_ha": 1800.0}, tags={"regen_2030_plant_spruce"})]),
             ])],
         ),
-        # 6 options for follow-up
+        # Follow-up decisions provide additional combinatorics (6 * 5 * 4 = 120 pathways).
         SimulationInstruction(
             conditions=[TimePoints([2040])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"rp_2040_wait"}),
-                Event(treatment=soil_surface_preparation, tags={"rp_2040_mound"}),
-                Event(treatment=regeneration, static_parameters=regen(1, 600.0), tags={"rp_2040_pine_fill_600"}),
-                Event(treatment=regeneration, static_parameters=regen(2, 600.0), tags={"rp_2040_spruce_fill_600"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters=regen(1, 900.0), tags={"rp_2040_mound_pine_fill"})]),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters=regen(2, 900.0), tags={"rp_2040_mound_spruce_fill"})]),
+                Event(treatment=do_nothing, tags={"followup_2040_none"}),
+                Harvest20percent(tags={"followup_2040_thin"}),
+                MarkRetentionTrees(tags={"followup_2040_retention"}),
+                Sequence([Mounding(tags={"followup_2040_mound"}), PlantingPines(tags={"followup_2040_replant"})]),
+                Sequence([Harvest20percent(tags={"followup_2040_thin"}), MarkRetentionTrees(tags={"followup_2040_retention"})]),
             ])],
         ),
-        # 5 options for late corrective action => 7*6*5=210
         SimulationInstruction(
             conditions=[TimePoints([2050])],
             events=[Alternatives([
-                Event(treatment=do_nothing, tags={"rp_2050_wait"}),
-                Event(treatment=regeneration, static_parameters=regen(1, 400.0), tags={"rp_2050_pine_fill"}),
-                Event(treatment=regeneration, static_parameters=regen(2, 400.0), tags={"rp_2050_spruce_fill"}),
-                Event(treatment=soil_surface_preparation, tags={"rp_2050_mound_only"}),
-                Sequence([Event(treatment=soil_surface_preparation), Event(treatment=regeneration, static_parameters=regen(1, 700.0), tags={"rp_2050_mound_pine_fill"})]),
+                Event(treatment=do_nothing, tags={"followup_2050_none"}),
+                Harvest20percent(tags={"followup_2050_thin"}),
+                MarkRetentionTrees(tags={"followup_2050_retention"}),
+                Sequence([Harvest20percent(tags={"followup_2050_thin"}), Harvest20percent(tags={"followup_2050_second_thin"})]),
             ])],
         ),
     ],

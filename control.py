@@ -5,7 +5,6 @@ from lukefi.metsi.sim.generators import Alternatives, Event, Sequence
 from lukefi.metsi.sim.sim_configuration import Transition
 from lukefi.metsi.sim.simulation_instruction import SimulationInstruction
 from lukefi.metsi.sim.treatment import do_nothing
-from examples.declarations.export_prepro import mela_decl
 
 
 control_structure = {
@@ -62,7 +61,6 @@ control_structure = {
     },
     'export_prepro': {
         'csv': {},
-        'rst': mela_decl
     }
 }
 

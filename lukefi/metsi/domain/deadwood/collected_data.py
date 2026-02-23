@@ -11,6 +11,7 @@ class DeadwoodPoolsData(CollectedData):
     pools: DeadwoodPools
     fluxes: DeadwoodFluxes
     inflows: DeadwoodInflows
+    year: int
 
     @classmethod
     @override
@@ -21,6 +22,7 @@ class DeadwoodPoolsData(CollectedData):
             CREATE TABLE deadwood_pools(
                 node TEXT,
                 stand TEXT,
+                year INTEGER,
                 cwl_c REAL,
                 fwl_c REAL,
                 nwl_c REAL,
@@ -39,6 +41,7 @@ class DeadwoodPoolsData(CollectedData):
                 node TEXT,
                 stand TEXT,
                 source TEXT,
+                year INTEGER,
                 input_c REAL,
                 PRIMARY KEY (node, stand, source),
                 FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
@@ -52,11 +55,12 @@ class DeadwoodPoolsData(CollectedData):
         cur.execute(
             """
             INSERT INTO deadwood_pools
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 node_str,
                 identifier,
+                self.year,
                 self.pools.cwl.total_c,
                 self.pools.fwl.total_c,
                 self.pools.nwl.total_c,
@@ -69,11 +73,11 @@ class DeadwoodPoolsData(CollectedData):
         cur.executemany(
             """
             INSERT INTO deadwood_source_ledger
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
             """,
             [
-                (node_str, identifier, "mortality", self.inflows.mortality_c),
-                (node_str, identifier, "harvest", self.inflows.harvest_residue_c),
-                (node_str, identifier, "disturbance", self.inflows.disturbance_c),
+                (node_str, identifier, "mortality", self.year, self.inflows.mortality_c),
+                (node_str, identifier, "harvest", self.year, self.inflows.harvest_residue_c),
+                (node_str, identifier, "disturbance", self.year, self.inflows.disturbance_c),
             ],
         )

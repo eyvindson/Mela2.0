@@ -1077,3 +1077,38 @@ Parameters:
 - `removed_trees`: optional removed-tree `ReferenceTrees` for harvest residue inflow (if omitted, operation uses `stand.deadwood_removed_trees` when present).
 
 Example control profile: `control_deadwood_mvp.py`.
+
+### Reading deadwood development over time from DB
+
+`deadwood_pools` contains one row for each node where the deadwood event was executed.
+Node identifiers are full simulation-path identifiers (for example `0-0-...-6-0-0`), so
+deadwood rows usually appear at deeper node ids than early intermediate nodes like `0-0`.
+
+The deadwood outputs now include the stand year directly in both `deadwood_pools` and
+`deadwood_source_ledger`, so time-series extraction does not require a join to `stands`.
+
+```sql
+SELECT
+  stand,
+  year,
+  node,
+  cwl_c,
+  fwl_c,
+  nwl_c,
+  total_c,
+  input_c,
+  decomposition_c,
+  net_change_c
+FROM deadwood_pools
+WHERE stand = :stand_id
+ORDER BY year, node;
+```
+
+Source-wise inflow extraction:
+
+```sql
+SELECT stand, year, node, source, input_c
+FROM deadwood_source_ledger
+WHERE stand = :stand_id
+ORDER BY year, node, source;
+```

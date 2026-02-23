@@ -186,6 +186,18 @@ class TestGrowMetsiVecWrapper(unittest.TestCase):
             # year advanced by step via our fake updater
             self.assertEqual(out_stand.year, 2005.0)
 
+class TestGrowMetsiInputSanitization(unittest.TestCase):
+    def test_degree_days_is_clamped_to_positive_value(self):
+        stand = make_stand()
+        stand.degree_days = 0.0
+        stand.reference_trees = make_rtrees_soa()
+
+        predictor = gm.MetsiGrowPredictor(stand)
+
+        self.assertEqual(predictor.dd, 1.0)
+
+
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

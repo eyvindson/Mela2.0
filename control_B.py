@@ -5,6 +5,7 @@ from lukefi.metsi.sim.generators import Alternatives, Event, Sequence
 from lukefi.metsi.sim.sim_configuration import Transition
 from lukefi.metsi.sim.simulation_instruction import SimulationInstruction
 from lukefi.metsi.sim.treatment import do_nothing
+from lukefi.metsi.forestry.harvest.cutting import cutting
 
 
 control_structure = {
@@ -38,9 +39,9 @@ control_structure = {
         SimulationInstruction(
             events=[
                 Alternatives([
-                    Event(treatment=do_nothing, static_parameters={"n": 1}, tags={"first_type"}),
+                    Event(treatment=cutting, static_parameters={"n": 1}, tags={"first_type"}),
                     Sequence([
-                        Event(treatment=do_nothing, static_parameters={"n": 2}, tags={"second_type"}, db_output=True),
+                        Event(treatment=cutting, static_parameters={"n": 2}, tags={"second_type"}, db_output=True),
                         Event(treatment=do_nothing, static_parameters={"n": 3}, tags={"third_type"}, db_output=True)
                     ])
                 ])

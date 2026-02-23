@@ -437,9 +437,20 @@ def _init_search(mode: str,
             step = 1000.0
 
     elif mode == "scale":
-        scalemax = np.max(1 / y[y > 0])
-        if np.any(y == 0):
-            scalemax = np.maximum(scalemax, 100.0)
+        #scalemax = np.max(1 / y[y > 0])
+        #if np.any(y == 0):
+        #    scalemax = np.maximum(scalemax, 100.0)
+        positive_y = y[np.isfinite(y) & (y > 0)]
+        if positive_y.size == 0:
+            # All initial shares are non-positive/non-finite (typically all zeros).
+            # Keep binary search numerically stable with a finite fallback range.
+            scalemax = 100.0
+        else:
+            inv_positive_y = 1 / positive_y
+            finite_inv = inv_positive_y[np.isfinite(inv_positive_y)]
+            scalemax = np.max(finite_inv) if finite_inv.size > 0 else 100.0
+            if np.any((~np.isfinite(y)) | (y == 0)):
+                scalemax = np.maximum(scalemax, 100.0)
         scale = scalemax / 2
         step = scalemax / 2
         y0 = y

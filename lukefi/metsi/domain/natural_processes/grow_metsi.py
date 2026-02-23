@@ -86,6 +86,25 @@ def _origin_to_mg(o: int) -> Origin:
 def _nan_to_num(a: np.ndarray, nan: float = 0.0) -> np.ndarray:
     return np.nan_to_num(a, nan=nan, posinf=nan, neginf=nan)
 
+def _safe_degree_days(value: float | None) -> float:
+    """Return a positive degree day value required by MetsiGrow formulas."""
+    dd = float(value or 0.0)
+    return dd if dd > 0.0 else 1.0
+
+
+def _is_math_domain_error(exc: Exception) -> bool:
+    if isinstance(exc, OverflowError):
+        return True
+
+    msg = str(exc).lower()
+    return (
+        "math domain error" in msg
+        or "must be real number, not complex" in msg
+        or "not supported between instances of 'complex' and 'int'" in msg
+        or "numerical result out of range" in msg
+    )
+
+
 
 # ---------- vectorized predictor ----------
 
@@ -121,7 +140,7 @@ class MetsiGrowPredictor(Predict):
             else int(TaxClassReduction.NONE)
         )
 
-        self.dd = stand.degree_days or 0.0
+        self.dd = _safe_degree_days(stand.degree_days)
         self.sea = stand.sea_effect or 0.0
         self.lake = stand.lake_effect or 0.0
 
@@ -262,14 +281,30 @@ def grow_metsi_fn(input_: ForestStand, /, **operation_parameters) -> OpTuple[For
 
     # build predictor and run growth
     pred = MetsiGrowPredictor(stand)
-    growth = pred.evolve(step=step)
+    try:
+        growth = pred.evolve(step=step)
+    except Exception as exc:
+        # Guard simulation against invalid math domains originating from
+        # lower-level MetsiGrow formulas (e.g. log inputs).
+        if not _is_math_domain_error(exc):
+            raise
+        stand.year += step
+        return stand, []
 
     rt = stand.reference_trees
 
     # deltas from MetsiGrow
-    idelta = np.asarray(growth.trees_id, dtype=float)  # diameter increments
-    hdelta = np.asarray(growth.trees_ih, dtype=float)  # height increments
-    fdelta = np.asarray(growth.trees_if, dtype=float)  # stems/ha increments
+    try:
+        idelta = np.asarray(growth.trees_id, dtype=float)  # diameter increments
+        hdelta = np.asarray(growth.trees_ih, dtype=float)  # height increments
+        fdelta = np.asarray(growth.trees_if, dtype=float)  # stems/ha increments
+    except Exception as exc:
+        # Some MetsiGrow internals are evaluated lazily during array
+        # materialization and may still raise math-domain errors.
+        if not _is_math_domain_error(exc):
+            raise
+        stand.year += step
+        return stand, []
 
     # apply deltas to get absolute new values
     diameters = _nan_to_num(rt.breast_height_diameter, 0.0) + idelta

@@ -8,6 +8,9 @@ build
 *.egg-info
 **/c/lib
 data/motti/*
+data/forest_data/*
+out/*
+.venv
 
 # Robot Framework output
 tests/robot/**/output/test/

@@ -1,5 +1,5 @@
 from lukefi.metsi.domain.forestry_types import ForestCondition
-from lukefi.metsi.domain.natural_processes.grow_acta import grow_acta_fn
+from lukefi.metsi.domain.natural_processes.grow_metsi import grow_metsi_fn
 from lukefi.metsi.domain.pre_ops import generate_reference_trees, preproc_filter, scale_area_weight
 from lukefi.metsi.sim.generators import Alternatives, Event, Sequence
 from lukefi.metsi.sim.sim_configuration import Transition
@@ -11,8 +11,8 @@ control_structure = {
     "app_configuration": {
         "state_format": "vmi13",  # options: fdm, vmi12, vmi13, xml, gpkg
         "run_modes": ["preprocess", "export_prepro", "simulate"],
-        "preprocessing_output_file": "preprocessing_results_ORIG",
-        "simulation_output_file": "simulation_results_ORIG"
+        "preprocessing_output_file": "preprocessing_results",
+        "simulation_output_file": "simulation_results",
     },
     "preprocessing_operations": [
         scale_area_weight,
@@ -24,30 +24,30 @@ control_structure = {
             {
                 "n_trees": 10,
                 "method": "weibull",
-                "debug": False
+                "debug": False,
             }
         ],
         preproc_filter: [
             {
                 "remove trees": (lambda trees: (trees.sapling != 0) | (trees.stems_per_ha == 0)),
-                "remove stands": (lambda stand: (stand.site_type_category is None) or (stand.site_type_category == 0))
+                "remove stands": (lambda stand: (stand.site_type_category is None) or (stand.site_type_category == 0)),
             }
-        ]
+        ],
     },
     "simulation_instructions": [
         SimulationInstruction(
             events=[
                 Alternatives([
-                    Event(treatment=do_nothing, static_parameters={"n": 1}, tags={"first_type"}),
+                    Event(treatment=do_nothing, static_parameters={"n": 1}, tags={"first_type", "style_passive", "style_extended_rotation"}),
                     Sequence([
-                        Event(treatment=do_nothing, static_parameters={"n": 2}, tags={"second_type"}, db_output=True),
-                        Event(treatment=do_nothing, static_parameters={"n": 3}, tags={"third_type"}, db_output=True)
-                    ])
+                        Event(treatment=do_nothing, static_parameters={"n": 2}, tags={"second_type", "style_two_step", "style_shortened_rotation"}, db_output=True),
+                        Event(treatment=do_nothing, static_parameters={"n": 3}, tags={"third_type", "style_two_step", "style_shortened_rotation"}, db_output=True)
+                    ]),
                 ])
             ]
         )
     ],
-    "transition": Transition(grow_acta_fn),
+    "transition": Transition(grow_metsi_fn),
     "end_condition": ForestCondition(lambda x: x.computational_unit.year >= 2050),
     "post_processing": {
         "operation_params": {
@@ -57,11 +57,12 @@ control_structure = {
         },
         "post_processing": [
             do_nothing
-        ]
+        ],
     },
-    'export_prepro': {
-        'csv': {},
-    }
+    "export_prepro": {
+        "csv": {},
+    },
 }
 
-__all__ = ['control_structure']
+
+__all__ = ["control_structure"]

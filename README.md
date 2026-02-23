@@ -1045,3 +1045,31 @@ operate depth-first within time points, but breadth-first across time points.__
 
 Use the control.py structure declaration to control the simulation structure, domain operations and parameters that
 are to be used.
+
+## Deadwood MVP configuration (phase 0/1 scaffold)
+
+A first deadwood integration scaffold is available in `lukefi.metsi.domain.deadwood`.
+
+Current defaults used in code:
+- Biomass equation policy default: `repola`
+- Harvest residues included in MVP: `True`
+- Backend path: `Yasso07Adapter` (binary-compatible adapter path can be wired later)
+- Output granularity: stand total first (pool-wise values are still stored in one stand-level record)
+- Biodiversity indicator: postponed
+
+### Operation: `update_deadwood_pools`
+
+Use as a simulation event treatment after growth/harvest events.
+
+Parameters:
+- `enabled` (bool, default `False`): feature flag for safe rollout
+- `step` (int, default `5`): decomposition step in years
+- `deadwood_config` (`DeadwoodInflowConfig`): inflow accounting settings
+  - `equation_set` default `"repola"`
+  - `include_harvest_residues` default `True`
+  - `carbon_fraction` default `0.5`
+  - `residue_share_of_removed_biomass` default `0.3`
+- `backend`: Yasso backend implementation (default `Yasso07Adapter` placeholder)
+- `removed_trees`: optional removed-tree `ReferenceTrees` for harvest residue inflow.
+
+Example control profile: `control_deadwood_mvp.py`.

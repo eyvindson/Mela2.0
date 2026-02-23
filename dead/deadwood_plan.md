@@ -159,3 +159,63 @@ This gives immediate deadwood pool estimates and enables iterative calibration.
 - [ ] Add unit tests for inflow mass-balance and deterministic pool stepping.
 - [ ] Add one example `control_*.py` scenario using new operation.
 - [ ] Document operation parameters in `README.md`.
+
+---
+
+## Status update after initial scaffold PR (for next agent)
+
+### What is now implemented
+
+- New deadwood package exists under `lukefi/metsi/domain/deadwood/` with:
+  - state and pool dataclasses,
+  - inflow builder,
+  - placeholder Yasso adapter,
+  - DB collected data writer,
+  - `update_deadwood_pools` treatment skeleton.
+- Example control profile `control_deadwood_mvp.py` exists.
+- README has a deadwood MVP section.
+- User decisions captured:
+  - default equation set: **Repola**,
+  - include harvest residues in MVP: **yes**,
+  - binary Yasso backend acceptable: **yes**,
+  - output granularity now: **stand total first**,
+  - biodiversity indicator: **postpone**.
+
+### Gaps identified from scaffold review
+
+1. Inflow assembly still uses a Repola **proxy** rather than documented equation coefficients from deadwood source material.
+2. Operation-level wiring to consume `RemovedTrees` directly from simulation event outputs is still manual and should be made explicit.
+3. Yasso adapter currently uses a deterministic placeholder decay model; real binary-backed stepping is not yet integrated.
+4. Climate forcing path for Yasso is still missing.
+5. Tests cover contracts, but no end-to-end simulation test asserts DB deadwood rows after a growth/harvest sequence.
+
+### Proposed next-agent work plan (priority order)
+
+#### Step A — Biomass conversion hardening (Phase 2 entry)
+- Add `biomass_conversion.py` with explicit `RepolaBiomassConverter` interface.
+- Move current proxy formula behind a clearly named fallback implementation.
+- Add coefficient-table loading and source-version logging in outputs.
+- Add tests for known tuples from literature/reference implementation.
+
+#### Step B — Event/output wiring for residues (finish Phase 1)
+- Define how `RemovedTrees` collected data is passed into `update_deadwood_pools` without manual parameter plumbing.
+- Add integration tests for natural mortality + harvest residues in the same step.
+- Add a per-source inflow ledger (`mortality`, `harvest`, `disturbance`) persisted in DB.
+
+#### Step C — Real Yasso backend integration (Phase 3)
+- Implement binary adapter for `dead/y07.so` (and Windows `.pyd` guard).
+- Keep deterministic pure-Python fallback for testability and portability.
+- Add climate adapter inputs `(temperature, precipitation, amplitude)` and 5x annual sub-stepping for 5-year growth steps.
+
+#### Step D — Output shaping for MVP
+- Keep stand-total outputs as default.
+- Add optional species-group (`pine/spruce/broadleaf`) breakdown flag for next phase, but keep disabled by default.
+- Document output table schema and version in README.
+
+### Questions for user before next implementation PR
+
+1. For Repola implementation, should the next PR target **stem + branch + foliage + stump + roots** immediately, or start with **stem + branch only** and expand next?
+2. For harvest residues, do you want a single global residue fraction (current style) or species-group specific defaults already in next PR?
+3. For Yasso climate forcing in MVP, should we start with one static Finland-wide default profile, or derive climate per stand from available stand metadata first?
+4. For stand-total output, do you want only `total_c` and `net_change_c`, or also keep AWENH columns visible in DB from the beginning?
+5. Should the next PR include a migration/backward-compatibility note for existing consumers of simulation DB outputs?

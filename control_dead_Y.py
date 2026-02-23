@@ -295,7 +295,10 @@ final_felling = Treatment(final_felling_fn, "final_felling", collected_data={Rem
 cross_cut_felled_trees = Treatment(cross_cut_felled_trees_fn, "cross_cut_felled_trees", collected_data={CrossCutRows})
 calculate_npv = Treatment(calculate_npv_fn, "calculate_npv", collected_data={NPVRow})
 regeneration_with_cost = Treatment(regeneration_with_cost_fn, "regeneration")
-update_deadwood = Treatment(update_deadwood_pools, "update_deadwood_pools")
+# `update_deadwood_pools` is already a `Treatment` object from
+# `lukefi.metsi.domain.deadwood.operations`; wrapping it again would make
+# `Treatment.treatment_fn` non-callable at runtime.
+update_deadwood = update_deadwood_pools
 
 
 basal_area_gt_15 = ForestCondition(lambda payload: (payload.computational_unit.basal_area is not None) and (payload.computational_unit.basal_area > 15.0), name="basal_area_gt_15")

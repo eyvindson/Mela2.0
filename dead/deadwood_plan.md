@@ -1,0 +1,161 @@
+# Deadwood integration plan for Mela2.0
+
+## Purpose
+
+This note translates the uploaded `dead/` material into an implementable roadmap for this repository.
+The source files come from a different simulator architecture, so this plan focuses on **reusing concepts and equations**, not direct drop-in integration.
+
+## What we have in `dead/`
+
+- `yasso07.py` + binary wrappers (`y07.so`, `y07.pyd`): a Python frontend that advances Yasso pools (AWENH) for coarse woody litter, fine woody litter, and non-woody litter.
+- `BiomassmodelLibrary.[ch]`: biomass equations (Marklund, Repola, Petersson–Ståhl variants) and biomass component structures.
+- `NaturalremovalmodelLibrary.[ch]`: natural mortality / removal functions (legacy C API style).
+- `DistributiondeadtreemodelLibrary.[ch]`: dead-tree distribution state by species, snag/downed state, diameter class, and years-since-death class.
+- `deadwood_diversity_jyu.py`: deadwood biodiversity index based on deadwood volume and decay-class diversity.
+- `harvest.py`: legacy simulator harvest logic (not directly reusable due to external dependencies and data contracts).
+
+## Compatibility assessment vs this repo
+
+### Current Mela2.0 capabilities relevant to deadwood
+
+1. Growth updates and mortality effects exist in growth modules:
+   - `grow_metsi` computes stem deltas and prunes trees with `stems < 1.0`.
+   - `grow_motti_dll` treats missing returned tree IDs as dead/removed (`stems -> 0`).
+2. Harvest removals are captured via collected data (`RemovedTrees`).
+3. Biomass reporting is documented (`stem_waste`, `dead_branches`, etc.), but no full deadwood + soil decomposition bookkeeping is currently integrated in this repo.
+
+### Reuse potential of uploaded assets
+
+#### High reuse potential (concept/equation level)
+
+- **`yasso07.py` model interface and AWENH pool bookkeeping logic**: strong candidate to port into a clean Mela2.0 adapter.
+- **Biomass equations from `BiomassmodelLibrary`**: useful for converting mortality and harvest residues into dead organic matter inputs.
+- **Dead-tree class/state ideas from `DistributiondeadtreemodelLibrary`**: useful for stand-level deadwood state representation and biodiversity indicators.
+- **`deadwood_diversity_jyu.py`**: can be implemented as a post-processing indicator operation once deadwood states exist.
+
+#### Medium reuse potential (requires substantial reframing)
+
+- **Natural removal C models**: logic may help calibrate or split mortality pools, but API/signatures need full translation.
+
+#### Low direct reuse potential
+
+- **`harvest.py`**: tightly coupled to SIMO-style operation signatures and modules (`HarvestData`, `HarvestOperation`, etc.); use only as reference for flow logic.
+
+## Proposed target architecture in Mela2.0
+
+## 1) New domain module layer
+
+Create a new namespace under `lukefi/metsi/domain/deadwood/`:
+
+- `types.py`
+  - Dataclasses for deadwood pool state and fluxes.
+  - Example: `DeadwoodPools`, `DeadwoodInflows`, `DeadwoodOutflows`, `DeadwoodDiagnostics`.
+- `biomass_conversion.py`
+  - Species/component biomass conversion helpers.
+  - Initial implementation can be table-driven with configurable coefficients.
+- `mortality_inputs.py`
+  - Build deadwood inflows from natural mortality and optionally from harvest residues.
+- `yasso_adapter.py`
+  - Thin adapter around selected Yasso backend.
+  - Supports backend strategy: `python_impl | native_binary | external_service`.
+- `distribution.py`
+  - Optional snag/downed + diameter + age-since-death class transitions.
+- `diversity.py`
+  - Deadwood diversity indicator calculation(s).
+
+## 2) Integration operation(s)
+
+Add one or two operations in simulation chains:
+
+- `update_deadwood_pools`
+  - Reads stand state and collected removals.
+  - Converts biomass to litter/wood inputs.
+  - Advances Yasso pools.
+  - Updates stand-attached deadwood state and emits collected outputs.
+- `report_deadwood`
+  - Emits diagnostics for outputs/DB export.
+
+## 3) Data persistence and output
+
+- Extend collected data structures for deadwood pools/fluxes.
+- Add DB table(s) for pool states by node + stand + time point.
+- Add optional biodiversity index output.
+
+## 4) Configuration strategy
+
+Introduce declarative params in `control*.py` operation params:
+
+- biomass equation set / coefficients
+- transfer fractions (mortality -> snag/downed/fine)
+- carbon fraction defaults
+- Yasso climate forcing source and timestep handling
+- class discretization choices for deadwood distribution
+
+## MVP implementation plan (phased)
+
+### Phase 0 — Scaffolding
+
+- Add deadwood data classes and no-op operation hooks.
+- Add tests validating that operations can run without changing existing workflows.
+
+### Phase 1 — Mortality + harvest inflow accounting
+
+- Implement inflow computation from:
+  - natural mortality signals in growth outputs,
+  - `RemovedTrees` harvest outputs where configured as residue/non-merchantable.
+- Implement species-group and component splits.
+- Unit tests for mass-balance on inflow builder.
+
+### Phase 2 — Biomass conversion
+
+- Implement configurable biomass converter.
+- Add regression tests from known coefficient cases.
+
+### Phase 3 — Yasso integration
+
+- Implement Yasso backend adapter and pool-step function.
+- Support AWENH pool mapping for cwl/fwl/nwl-like compartments.
+- Add deterministic tests with fixed climate and infall.
+
+### Phase 4 — Deadwood distribution + diversity indicator
+
+- Implement optional distribution classes (species × snag/downed × diameter × years-since-death).
+- Add `deadwood_diversity` indicator calculation.
+
+### Phase 5 — Reporting and scenario controls
+
+- Add DB export tables and optional report operations.
+- Add example control configuration and documentation.
+
+## Technical risks and mitigations
+
+- **Binary dependency risk (Yasso `.so`/`.pyd`)**: encapsulate backend behind adapter; provide pure-Python fallback path.
+- **Double counting risk (harvest + mortality + biomass outputs)**: enforce explicit input-source flags and a mass-balance validator.
+- **Time-step mismatch risk (5-year growth vs annual decomposition)**: standardize internal decomposition stepping (substepping if needed).
+- **Species/equation mismatch risk**: use a small, explicit species-group mapping table with validation.
+
+## Decisions needed from product/science side
+
+1. Preferred Yasso backend and deployment constraints (Python-only vs compiled library allowed).
+2. Which biomass equation family to treat as default.
+3. Carbon fraction constants and whether species-specific values are required.
+4. Should harvest residues enter deadwood pools in MVP, or only natural mortality.
+5. Whether to implement deadwood class distribution in MVP or postpone.
+6. Required outputs for calibration/validation and their aggregation level.
+
+## Suggested first sprint scope (practical)
+
+If we want fast progress with low risk, start with:
+
+- Phase 0 + Phase 1 + minimal Phase 3 (single pooled Yasso bucket per stand/species-group),
+- and postpone class distribution/diversity to Sprint 2.
+
+This gives immediate deadwood pool estimates and enables iterative calibration.
+
+## Handoff checklist for next agent
+
+- [ ] Confirm scientific defaults from user (backend, coefficients, transfer fractions).
+- [ ] Implement deadwood dataclasses and operation skeletons.
+- [ ] Add unit tests for inflow mass-balance and deterministic pool stepping.
+- [ ] Add one example `control_*.py` scenario using new operation.
+- [ ] Document operation parameters in `README.md`.

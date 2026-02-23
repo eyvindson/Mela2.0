@@ -62,7 +62,8 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
     stand.deadwood_state.latest_fluxes = fluxes
     stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
 
-    return stand, [DeadwoodPoolsData(pools=pools, fluxes=fluxes, inflows=inflows)]
+    stand_year = int(getattr(stand, "year", 0) or 0)
+    return stand, [DeadwoodPoolsData(pools=pools, fluxes=fluxes, inflows=inflows, year=stand_year)]
 
 
 update_deadwood_pools = Treatment(

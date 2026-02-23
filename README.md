@@ -1051,10 +1051,10 @@ are to be used.
 A first deadwood integration scaffold is available in `lukefi.metsi.domain.deadwood`.
 
 Current defaults used in code:
-- Biomass equation policy default: `repola` with explicit component split (`stem + branch + foliage + stump + roots`)
+- Biomass equation policy default: `repola` direct equations ported for pine/spruce/broadleaf with explicit components
 - Harvest residues included in MVP: `True`, with species-group defaults (`pine=0.28`, `spruce=0.32`, `broadleaf=0.35`)
 - Backend path: `Yasso07Adapter` with static Finland-wide climate default and climate-provider hook for stand-wise forcing
-- Output granularity: stand total first (`total_c`, `net_change_c`) while AWENH pools remain visible in DB (`acid_c`, `water_c`, `ethanol_c`, `non_soluble_c`, `humus_c`)
+- Output granularity: stand/channel totals in DB (`cwl_c`, `fwl_c`, `nwl_c`, `total_c`) plus source-ledger rows per timestep (`mortality`, `harvest`, `disturbance`)
 - Biodiversity indicator: postponed
 
 ### Operation: `update_deadwood_pools`
@@ -1068,6 +1068,7 @@ Parameters:
   - `equation_set` default `"repola"`
   - `include_harvest_residues` default `True`
   - `carbon_fraction` default `0.5`
+  - `fine_root_fraction` default `0.3` (70/30 coarse/fine roots split)
   - `residue_share_of_removed_biomass` default `0.3` (global fallback)
   - `residue_share_by_species_group` default `{"pine": 0.28, "spruce": 0.32, "broadleaf": 0.35}`
 - `backend`: Yasso backend implementation (default `Yasso07Adapter`)

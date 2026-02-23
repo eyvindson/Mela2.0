@@ -2,7 +2,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import override
 
-from lukefi.metsi.domain.deadwood.types import DeadwoodPools, DeadwoodFluxes
+from lukefi.metsi.domain.deadwood.types import DeadwoodFluxes, DeadwoodInflows, DeadwoodPools
 from lukefi.metsi.sim.collected_data import CollectedData
 
 
@@ -10,6 +10,7 @@ from lukefi.metsi.sim.collected_data import CollectedData
 class DeadwoodPoolsData(CollectedData):
     pools: DeadwoodPools
     fluxes: DeadwoodFluxes
+    inflows: DeadwoodInflows
 
     @classmethod
     @override
@@ -20,16 +21,26 @@ class DeadwoodPoolsData(CollectedData):
             CREATE TABLE deadwood_pools(
                 node TEXT,
                 stand TEXT,
-                acid_c REAL,
-                water_c REAL,
-                ethanol_c REAL,
-                non_soluble_c REAL,
-                humus_c REAL,
+                cwl_c REAL,
+                fwl_c REAL,
+                nwl_c REAL,
                 total_c REAL,
                 input_c REAL,
                 decomposition_c REAL,
                 net_change_c REAL,
                 PRIMARY KEY (node, stand),
+                FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE deadwood_source_ledger(
+                node TEXT,
+                stand TEXT,
+                source TEXT,
+                input_c REAL,
+                PRIMARY KEY (node, stand, source),
                 FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
             )
             """
@@ -41,19 +52,28 @@ class DeadwoodPoolsData(CollectedData):
         cur.execute(
             """
             INSERT INTO deadwood_pools
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 node_str,
                 identifier,
-                self.pools.acid_c,
-                self.pools.water_c,
-                self.pools.ethanol_c,
-                self.pools.non_soluble_c,
-                self.pools.humus_c,
+                self.pools.cwl.total_c,
+                self.pools.fwl.total_c,
+                self.pools.nwl.total_c,
                 self.pools.total_c,
                 self.fluxes.input_c,
                 self.fluxes.decomposition_c,
                 self.fluxes.net_change_c,
             ),
+        )
+        cur.executemany(
+            """
+            INSERT INTO deadwood_source_ledger
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                (node_str, identifier, "mortality", self.inflows.mortality_c),
+                (node_str, identifier, "harvest", self.inflows.harvest_residue_c),
+                (node_str, identifier, "disturbance", self.inflows.disturbance_c),
+            ],
         )

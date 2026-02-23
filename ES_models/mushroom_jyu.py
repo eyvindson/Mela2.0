@@ -64,13 +64,24 @@ def Mushroom_jyu(arg, oind):
     Age = arg.variables[1, oind]
 		
     # Boletus
-    Boletus = math.exp(-1.9819  + 0.1778 * BA + -0.0049 * (BA * BA) + 2.0907 * (BA / (Age + 5.)))
+    try:
+        Boletus = math.exp(-1.9819  + 0.1778 * BA + -0.0049 * (BA * BA) + 2.0907 * (BA / (Age + 5.)))
+    except:# OverflowError:
+        BA = 0
+        Boletus = math.exp(-1.9819  + 0.1778 * BA + -0.0049 * (BA * BA) + 2.0907 * (BA / (Age + 5.)))
     
-	# Lactarius
-    Lactarius = math.exp(2.1243 - 0.0179 * BA + 1.7435 * (BA / (Age + 5.)))
+	try:# Lactarius
+        Lactarius = math.exp(2.1243 - 0.0179 * BA + 1.7435 * (BA / (Age + 5.)))
+    except:# OverflowError:
+        BA = 0
+        Lactarius = math.exp(2.1243 - 0.0179 * BA + 1.7435 * (BA / (Age + 5.)))
 	
 	# ALL_MARKETED_MUSHROOMS
-    ALL_MARKETED_MUSHROOMS = math.exp(2.5987 - 0.0118 * BA + 1.5012 * (BA / (Age + 5.)))
+    try:
+        ALL_MARKETED_MUSHROOMS = math.exp(2.5987 - 0.0118 * BA + 1.5012 * (BA / (Age + 5.)))
+    except:# OverflowError:
+        BA = 0
+        ALL_MARKETED_MUSHROOMS = math.exp(2.5987 - 0.0118 * BA + 1.5012 * (BA / (Age + 5.)))
 	
 	# number of berries to kg/ha
     

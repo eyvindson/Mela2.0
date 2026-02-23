@@ -1,11 +1,11 @@
-
+﻿
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
-Title: Long-tailed tit HSI model JYU.
+Title: Deadwood diversity JYU.
 
-*long_tailed_tit_jyu.py*
+*deadwood_diversity_jyu.py*
 
 Each model definition must be of the form:
     def model_name(arg, oind)
@@ -49,58 +49,34 @@ errors and 0 if errors occurred.
 
 import math
 
-def Long_tailed_tit_jyu(arg, oind):
+def Deadwood_diversity_jyu(arg, oind):
     """
-		Calculates habitat suitability index for long-tailed tit, University of Jyvaskyla.
+	Calculates deadwood diversity, ecosystem service, University of Jyvaskyla.
     """
-    
     ret = 1
 	
-	# total volume
-    V = arg.variables[0, oind]
-	# pendula birch volume
-    V_penbirch = arg.variables[1, oind]
-	# pubescens birch volume
-    V_pubbirch = arg.variables[2, oind]
-	# aspen volume
-    V_aspen = arg.variables[3, oind]
-	# basal area 
-    BA = arg.variables[4, oind]
-	# age
-    Age = arg.variables[5, oind]
+    # total deadwood volume
+    V_total_deadwood = arg.variables[0, oind]
+    # number of pine decay classes
+    N_pine_decay_classes = arg.variables[1, oind]    
+    # number of spruce decay classes
+    N_spruce_decay_classes = arg.variables[2, oind]
+	# number of deciduous decay classes
+    N_deciduous_decay_classes = arg.variables[3, oind]
 	
-    # volume of deciduous trees     
-    voldec = V_penbirch + V_pubbirch + V_aspen
-    
-    propdec = 0
-    if V > 0:
-		# share of deciduous trees of total volume, %
-        propdec = (voldec / V) * 100.
-            	
-    # long-tailed tit
-    wagelon = (0.1/3) * Age - 1
-    if Age < 30.:
-		wagelon = 0
-    elif Age >= 60.:
-		wagelon = 1.
+    # diversity: Inverse of Simpson's diversity index, 1-(SUM(n(n-1))/(N(N-1))
 	
-    wbalon = 0.2 * BA - 2.
-    if BA <= 10.:
-		wbalon = 0
-    elif BA > 15.:
-		wbalon = 1.
-  
-    wdeclon = 0.025 * propdec - 0.5
-    if propdec <= 20.:
-		wdeclon = 0
-    elif propdec > 60.:
-		wdeclon = 1
-			
-    result = wagelon * wbalon * wdeclon
+    N = round(N_pine_decay_classes + N_spruce_decay_classes + N_deciduous_decay_classes, 0)
+    # SUM(n(n-1))
+    sumn = (N_pine_decay_classes * (N_pine_decay_classes - 1.)) + (N_spruce_decay_classes * (N_spruce_decay_classes - 1.)) + (N_deciduous_decay_classes * (N_deciduous_decay_classes - 1.))
+    diversity = 1. - (sumn / (N * (N - 1.)))
 	
-    # result (diameter growth of tree) back to SIMO
+    # result (deadwood diversity) back to SIMO
     arg.num_of_res_objs[oind] = 1
 	
-    arg.mem[0, oind] = round(result,2)
+    result = V_total_deadwood * diversity
 	
+    arg.mem[0, oind] = round(result,4)
+    	
     return ret
+	

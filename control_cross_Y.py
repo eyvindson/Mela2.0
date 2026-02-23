@@ -304,7 +304,7 @@ no_trees_on_stand = ForestCondition(lambda payload: payload.computational_unit.r
 
 control_structure = {
     "app_configuration": {
-        "state_format": "vmi13", # options: fdm, vmi12, vmi13, xml, gpkg
+        "state_format": "gpkg", # options: fdm, vmi12, vmi13, xml, gpkg
         "run_modes": ["preprocess", "export_prepro", "simulate"],
         "preprocessing_output_file": "preprocessing_results_Y",
         "simulation_output_file": "simulation_results_Y",

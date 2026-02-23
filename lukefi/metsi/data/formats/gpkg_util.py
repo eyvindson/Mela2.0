@@ -32,12 +32,20 @@ class Centroid(TypedDict):
     crs: str
 
 
-def _extract_centroid(geometry: Polygon) -> Centroid:
-    """ Extracts centroid information from polygon coordinates """
-    cid = geometry.centroid
+def _extract_centroid(geometry: Polygon | geopandas.GeoSeries) -> Centroid:
+    """Extract centroid information from a geometry polygon/series."""
+    if isinstance(geometry, geopandas.GeoSeries):
+        shape = geometry.iloc[0]
+        crs = geometry.crs
+    else:
+        shape = geometry
+        crs = None
+
+    cid = shape.centroid
     latitude = round(float(cid.y), 2)
     longitude = round(float(cid.x), 2)
-    return {"centroid": (longitude, latitude), "crs": getattr(cid, "crs").srs.upper()}
+    crs_str = crs.srs.upper() if crs is not None else ""
+    return {"centroid": (longitude, latitude), "crs": crs_str}
 
 
 def _attach_location(df: pd.DataFrame, gdf: geopandas.GeoDataFrame) -> pd.DataFrame:

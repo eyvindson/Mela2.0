@@ -32,6 +32,9 @@ extracted_values AS (
 ),
 bilberry AS (
     {bilberry_sql}
+),
+jyu_ecosystem_services AS (
+    {jyu_ecosystem_services_sql}
 )
 SELECT
     p.stand AS stand_identifier,
@@ -42,6 +45,17 @@ SELECT
     n.done_treatment,
     COALESCE(h.harvested_stems_per_ha, 0.0) AS harvested_stems_per_ha,
     COALESCE(h.harvested_basal_area, 0.0) AS harvested_basal_area,
+    COALESCE(jes.cowberry_yield_kg_ha, 0.0) AS cowberry_yield_kg_ha,
+    COALESCE(jes.cowberry_yield_kg_ha * COALESCE(s.area, 0.0), 0.0) AS cowberry_yield_kg_stand,
+    COALESCE(jes.cep_yield_kg_ha, 0.0) AS cep_yield_kg_ha,
+    COALESCE(jes.cep_yield_kg_ha * COALESCE(s.area, 0.0), 0.0) AS cep_yield_kg_stand,
+    COALESCE(jes.mushroom_yield_kg_ha, 0.0) AS mushroom_yield_kg_ha,
+    COALESCE(jes.mushroom_yield_kg_ha * COALESCE(s.area, 0.0), 0.0) AS mushroom_yield_kg_stand,
+    COALESCE(jes.siberian_flying_squirrel_hsi, 0.0) AS siberian_flying_squirrel_hsi,
+    COALESCE(jes.long_tailed_tit_hsi, 0.0) AS long_tailed_tit_hsi,
+    COALESCE(jes.hazel_grouse_hsi, 0.0) AS hazel_grouse_hsi,
+    COALESCE(jes.capercaillie_hsi, 0.0) AS capercaillie_hsi,
+    COALESCE(jes.three_toed_woodpecker_hsi, 0.0) AS three_toed_woodpecker_hsi,
     ev.extracted_value AS extracted_value,
     COALESCE(b.bilberry_yield_kg_ha, 0.0) AS bilberry_yield_kg_ha,
     COALESCE(b.bilberry_yield_kg_ha * COALESCE(s.area, 0.0), 0.0) AS bilberry_yield_kg_stand,
@@ -62,6 +76,9 @@ LEFT JOIN extracted_values ev
 LEFT JOIN bilberry b
     ON b.node = p.node
    AND b.stand = p.stand
+LEFT JOIN jyu_ecosystem_services jes
+   ON jes.node = p.node
+   AND jes.stand = p.stand
 WHERE p.node <> "0"
 {ignored_treatments_clause}
 ORDER BY stand_identifier, alternative_identifier, s.year, node_depth, node_identifier
@@ -141,6 +158,43 @@ def _build_bilberry_sql(connection: sqlite3.Connection) -> str:
     return "SELECT node, stand, SUM(yield_kg_ha) AS bilberry_yield_kg_ha FROM bilberry_yield GROUP BY node, stand"
 
 
+def _build_jyu_ecosystem_services_sql(connection: sqlite3.Connection) -> str:
+    tables = set(_list_tables(connection))
+    if "jyu_ecosystem_services" not in tables:
+        return (
+            "SELECT NULL AS node, NULL AS stand, "
+            "0.0 AS cowberry_yield_kg_ha, 0.0 AS cep_yield_kg_ha, 0.0 AS mushroom_yield_kg_ha, "
+            "0.0 AS siberian_flying_squirrel_hsi, 0.0 AS long_tailed_tit_hsi, 0.0 AS hazel_grouse_hsi, "
+            "0.0 AS capercaillie_hsi, 0.0 AS three_toed_woodpecker_hsi WHERE 1=0"
+        )
+
+    cols = _table_columns(connection, "jyu_ecosystem_services")
+    required = {
+        "node", "stand", "cowberry_yield_kg_ha", "cep_yield_kg_ha", "mushroom_yield_kg_ha",
+        "siberian_flying_squirrel_hsi", "long_tailed_tit_hsi", "hazel_grouse_hsi",
+        "capercaillie_hsi", "three_toed_woodpecker_hsi",
+    }
+    if not required.issubset(cols):
+        return (
+            "SELECT NULL AS node, NULL AS stand, "
+            "0.0 AS cowberry_yield_kg_ha, 0.0 AS cep_yield_kg_ha, 0.0 AS mushroom_yield_kg_ha, "
+            "0.0 AS siberian_flying_squirrel_hsi, 0.0 AS long_tailed_tit_hsi, 0.0 AS hazel_grouse_hsi, "
+            "0.0 AS capercaillie_hsi, 0.0 AS three_toed_woodpecker_hsi WHERE 1=0"
+        )
+
+    return (
+        "SELECT node, stand, "
+        "SUM(cowberry_yield_kg_ha) AS cowberry_yield_kg_ha, "
+        "SUM(cep_yield_kg_ha) AS cep_yield_kg_ha, "
+        "SUM(mushroom_yield_kg_ha) AS mushroom_yield_kg_ha, "
+        "AVG(siberian_flying_squirrel_hsi) AS siberian_flying_squirrel_hsi, "
+        "AVG(long_tailed_tit_hsi) AS long_tailed_tit_hsi, "
+        "AVG(hazel_grouse_hsi) AS hazel_grouse_hsi, "
+        "AVG(capercaillie_hsi) AS capercaillie_hsi, "
+        "AVG(three_toed_woodpecker_hsi) AS three_toed_woodpecker_hsi "
+        "FROM jyu_ecosystem_services GROUP BY node, stand"
+    )
+
 def export_stand_performance_table(db_path: str | Path,
                                    output_csv_path: str | Path,
                                    ignored_treatments: Iterable[str] = ()) -> None:
@@ -165,6 +219,7 @@ def export_stand_performance_table(db_path: str | Path,
             harvest_sql=_build_harvest_sql(con),
             extracted_value_sql=_build_extracted_value_sql(con),
             bilberry_sql=_build_bilberry_sql(con),
+            jyu_ecosystem_services_sql=_build_jyu_ecosystem_services_sql(con),
             ignored_treatments_clause=ignored_clause,
         )
         rows = con.execute(query, ignored_treatments)

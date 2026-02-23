@@ -138,8 +138,10 @@ def Bilberry_jyu(arg, oind):
             a2 = a3 = a4 = 0
         try:
             bilberrypinebirchcov = 100. * (1 / (1 + math.exp(-(a0 + a1 + a2 + a3 +a4 + a5 + a6 + a7 + a8 +a9 * ALT + a10 * Age + a11 * (Age * Age / 100.) + a12 * BA + a13 * (BA * BA / 100.)))))
-        except OverflowError:
-            import pdb;pdb.set_trace();
+        except:# OverflowError:
+            BA = 0#bilberrypinebirchcov = 1
+            bilberrypinebirchcov = 100. * (1 / (1 + math.exp(-(a0 + a1 + a2 + a3 +a4 + a5 + a6 + a7 + a8 +a9 * ALT + a10 * Age + a11 * (Age * Age / 100.) + a12 * BA + a13 * (BA * BA / 100.)))))
+            #import pdb;pdb.set_trace();
         bilberrypinebirchyield = math.exp(a14 + a15 + a16 * bilberrypinebirchcov + a17 * ((bilberrypinebirchcov * bilberrypinebirchcov) / 100.))
         # number of berries to kg/ha
         bilberrypinebirchyield = bilberrypinebirchyield * 0.8 * 10000. * 0.35 / 1000.

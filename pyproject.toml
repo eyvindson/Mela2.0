@@ -48,6 +48,11 @@ mela2 = "lukefi.metsi.app.metsi:main"
 
 [tool.setuptools.package-dir]
 lukefi = "lukefi"
+ES_models = "ES_models"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lukefi*", "ES_models*"]
 
 [tool.setuptools.package-data]
 "lukefi.metsi.forestry.lua" = ["*"]

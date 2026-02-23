@@ -11,6 +11,7 @@ from lukefi.metsi.data.enums.mela import MelaMethodOfTheLastCutting
 from lukefi.metsi.domain.conditions import TimeSinceTreatment
 from lukefi.metsi.domain.collected_data import RemovedTrees
 from lukefi.metsi.domain.forestry_types import ForestCondition
+from lukefi.metsi.domain.ecosystem_services.jyu_ecosystem_services import calculate_jyu_ecosystem_services
 from lukefi.metsi.domain.forestry_treatments.regeneration import regeneration
 from lukefi.metsi.domain.natural_processes.grow_acta import grow_acta_fn
 from lukefi.metsi.domain.natural_processes.grow_metsi import grow_metsi_fn
@@ -303,7 +304,7 @@ no_trees_on_stand = ForestCondition(lambda payload: payload.computational_unit.r
 
 control_structure = {
     "app_configuration": {
-        "state_format": "gpkg", # options: fdm, vmi12, vmi13, xml, gpkg
+        "state_format": "vmi13", # options: fdm, vmi12, vmi13, xml, gpkg
         "run_modes": ["preprocess", "export_prepro", "simulate"],
         "preprocessing_output_file": "preprocessing_results_Y",
         "simulation_output_file": "simulation_results_Y",
@@ -335,58 +336,95 @@ control_structure = {
         ]
     },
     "simulation_instructions": [
-        SimulationInstruction(events=[
-            Alternatives([
-                Event(treatment=do_nothing, static_parameters={"n": 1}, tags={"first_type", "do_nothing"}),
-                Event(treatment=final_felling, static_parameters={"n": 7}, tags={"final_felling_only"}, preconditions=[basal_area_gt_15], db_output=True),
-                Sequence([
-                    Event(treatment=final_felling, static_parameters={"n": 8}, tags={"final_felling_then_cross_cut"}, preconditions=[basal_area_gt_15], db_output=True),
-                    Event(treatment=cross_cut_felled_trees, static_parameters={"implementation": "py"}, file_parameters={"timber_price_table": PARAM_FILES["timber_price_table"]}, tags={"cross_cut_felled_trees"}, db_output=True),
-                    Event(treatment=calculate_npv,
-                          static_parameters={"interest_rates": [3]},
-                          file_parameters={
-                              "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
-                              "land_values": str(PARAM_DIR / "land_values_per_site_type_and_interest_rate.json"),
-                          },
-                          tags={"npv"},
-                          db_output=True),
-                ]),
-                Event(treatment=continuous_cover_cut, static_parameters={"n": 9}, file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]}, tags={"continuous_cover_cut_only"}, preconditions=[basal_area_gt_15, continuous_cover_every_15y], db_output=True),
-                Sequence([
-                    Event(treatment=continuous_cover_cut, static_parameters={"n": 10}, file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]}, tags={"continuous_cover_then_cross_cut"}, preconditions=[basal_area_gt_15, continuous_cover_every_15y], db_output=True),
-                    Event(treatment=cross_cut_felled_trees, static_parameters={"implementation": "py"}, file_parameters={"timber_price_table": PARAM_FILES["timber_price_table"]}, tags={"cross_cut_felled_trees"}, db_output=True),
-                    Event(treatment=calculate_npv,
-                          static_parameters={"interest_rates": [3]},
-                          file_parameters={
-                              "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
-                              "land_values": str(PARAM_DIR / "land_values_per_site_type_and_interest_rate.json"),
-                          },
-                          tags={"npv"},
-                          db_output=True),
-                ]),
-                Event(treatment=regeneration_with_cost,
-                      static_parameters={
-                          "origin": 2,
-                          "species": 2,
-                          "stems_per_ha": DEFAULT_SPRUCE_STEMS,
-                          "height": 0.7,
-                          "biological_age": 1.0,
-                          "ntrees": 10,
-                          "type": "artificial",
-                      },
-                      file_parameters={
-                          "planting_instructions": PARAM_FILES["planting_instructions"],
-                          "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
-                      },
-                      tags={"spruce_planting_if_empty"},
-                      preconditions=[no_trees_on_stand],
-                      db_output=True),
-                Event(treatment=thinning_from_below, static_parameters={"n": 11}, file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]}, tags={"thinning_from_below_mid_ba"}, preconditions=[basal_area_between_7_and_12], db_output=True),
-            ])
-        ])
-    ],
+    SimulationInstruction(
+        events=[
+            Sequence(
+                [
+                    Alternatives(
+                        [
+                            Event(treatment=do_nothing, static_parameters={"n": 1}, tags={"first_type", "do_nothing"}),
+
+                            Event(treatment=final_felling, static_parameters={"n": 7}, tags={"final_felling_only"},
+                                  preconditions=[basal_area_gt_15], db_output=True),
+
+                            Sequence([
+                                Event(treatment=final_felling, static_parameters={"n": 8},
+                                      tags={"final_felling_then_cross_cut"}, preconditions=[basal_area_gt_15], db_output=True),
+                                Event(treatment=cross_cut_felled_trees, static_parameters={"implementation": "py"},
+                                      file_parameters={"timber_price_table": PARAM_FILES["timber_price_table"]},
+                                      tags={"cross_cut_felled_trees"}, db_output=True),
+                                Event(treatment=calculate_npv,
+                                      static_parameters={"interest_rates": [3]},
+                                      file_parameters={
+                                          "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
+                                          "land_values": str(PARAM_DIR / "land_values_per_site_type_and_interest_rate.json"),
+                                      },
+                                      tags={"npv"}, db_output=True),
+                            ]),
+
+                            Event(treatment=continuous_cover_cut, static_parameters={"n": 9},
+                                  file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]},
+                                  tags={"continuous_cover_cut_only"},
+                                  preconditions=[basal_area_gt_15, continuous_cover_every_15y], db_output=True),
+
+                            Sequence([
+                                Event(treatment=continuous_cover_cut, static_parameters={"n": 10},
+                                      file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]},
+                                      tags={"continuous_cover_then_cross_cut"},
+                                      preconditions=[basal_area_gt_15, continuous_cover_every_15y], db_output=True),
+                                Event(treatment=cross_cut_felled_trees, static_parameters={"implementation": "py"},
+                                      file_parameters={"timber_price_table": PARAM_FILES["timber_price_table"]},
+                                      tags={"cross_cut_felled_trees"}, db_output=True),
+                                Event(treatment=calculate_npv,
+                                      static_parameters={"interest_rates": [3]},
+                                      file_parameters={
+                                          "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
+                                          "land_values": str(PARAM_DIR / "land_values_per_site_type_and_interest_rate.json"),
+                                      },
+                                      tags={"npv"}, db_output=True),
+                            ]),
+
+                            Event(treatment=regeneration_with_cost,
+                                  static_parameters={
+                                      "origin": 2,
+                                      "species": 2,
+                                      "stems_per_ha": DEFAULT_SPRUCE_STEMS,
+                                      "height": 0.7,
+                                      "biological_age": 1.0,
+                                      "ntrees": 10,
+                                      "type": "artificial",
+                                  },
+                                  file_parameters={
+                                      "planting_instructions": PARAM_FILES["planting_instructions"],
+                                      "renewal_costs": str(PARAM_DIR / "renewal_operation_pricing.csv"),
+                                  },
+                                  tags={"spruce_planting_if_empty"},
+                                  preconditions=[no_trees_on_stand],
+                                  db_output=True),
+
+                            Event(treatment=thinning_from_below, static_parameters={"n": 11},
+                                  file_parameters={"thinning_limits": PARAM_FILES["thinning_limits"]},
+                                  tags={"thinning_from_below_mid_ba"},
+                                  preconditions=[basal_area_between_7_and_12], db_output=True),
+                        ]
+                    ),
+
+                    # Runs after whichever alternative was taken
+                    Event(
+                        treatment=calculate_jyu_ecosystem_services,
+                        static_parameters={"berry_price_per_kg": 8.0},
+                        tags={"jyu_ecosystem_service", "bilberry"},
+                        db_output=True,
+                    ),
+                ]
+            )
+        ]
+    )
+],
     "transition": Transition(grow_metsi_fn),
     "end_condition": ForestCondition(lambda x: x.computational_unit.year >= 2050),
+
+    
     "export_prepro": {"csv": {}},
 }
 

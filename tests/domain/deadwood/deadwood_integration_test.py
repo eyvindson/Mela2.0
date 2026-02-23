@@ -2,9 +2,10 @@ import numpy as np
 import pytest
 
 from lukefi.metsi.data.vector_model import ReferenceTrees
+from lukefi.metsi.domain.deadwood.biomass_conversion import RepolaProxyBiomassConverter
 from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows
 from lukefi.metsi.domain.deadwood.types import DeadwoodInflows, DeadwoodPools
-from lukefi.metsi.domain.deadwood.yasso_backend import Yasso07Adapter
+from lukefi.metsi.domain.deadwood.yasso_backend import FINLAND_STATIC_CLIMATE, Yasso07Adapter, YassoClimate
 
 
 def make_reference_trees(ids: list[str], stems: list[float], dbh: list[float], h: list[float], species: list[int]) -> ReferenceTrees:
@@ -40,6 +41,32 @@ def test_inflow_builder_mass_balance_and_partial_stem_loss():
     assert inflows.mortality_c < inflow_full.mortality_c
 
 
+def test_species_group_specific_residue_defaults():
+    removed_pine = make_reference_trees(["p"], [30.0], [20.0], [16.0], [1])
+    removed_spruce = make_reference_trees(["s"], [30.0], [20.0], [16.0], [2])
+
+    config = DeadwoodInflowConfig()
+    pine = build_deadwood_inflows(removed_pine, removed_pine, removed_trees=removed_pine, config=config)
+    spruce = build_deadwood_inflows(removed_spruce, removed_spruce, removed_trees=removed_spruce, config=config)
+
+    assert spruce.harvest_residue_c > pine.harvest_residue_c
+
+
+def test_repola_proxy_converter_exposes_all_components():
+    trees = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
+    components = RepolaProxyBiomassConverter().component_carbon_kg_per_ha(trees)
+
+    assert components.stem_c > 0
+    assert components.branch_c > 0
+    assert components.foliage_c > 0
+    assert components.stump_c > 0
+    assert components.roots_c > 0
+    np.testing.assert_allclose(
+        components.total_c,
+        components.stem_c + components.branch_c + components.foliage_c + components.stump_c + components.roots_c,
+    )
+
+
 def test_invalid_equation_set_rejected():
     prev = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
     cur = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
@@ -68,3 +95,17 @@ def test_deterministic_one_step_decomposition_contract():
 
     np.testing.assert_allclose(first[0].total_c, second[0].total_c)
     np.testing.assert_allclose(first[1].decomposition_c, second[1].decomposition_c)
+
+
+def test_climate_configurable_but_finland_default_available():
+    pools = DeadwoodPools(acid_c=10.0)
+    inflows = DeadwoodInflows()
+
+    colder = Yasso07Adapter(climate_default=YassoClimate(temperature_c=-2.0, precipitation_mm=500.0, temperature_amplitude_c=15.0))
+    warmer = Yasso07Adapter(climate_default=YassoClimate(temperature_c=8.0, precipitation_mm=650.0, temperature_amplitude_c=12.0))
+
+    cold_updated, _ = colder.step(pools, inflows, years=5)
+    warm_updated, _ = warmer.step(pools, inflows, years=5)
+
+    assert FINLAND_STATIC_CLIMATE.temperature_c == 3.5
+    assert warm_updated.total_c < cold_updated.total_c

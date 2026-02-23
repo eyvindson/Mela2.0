@@ -219,3 +219,73 @@ This gives immediate deadwood pool estimates and enables iterative calibration.
 3. For Yasso climate forcing in MVP, should we start with one static Finland-wide default profile, or derive climate per stand from available stand metadata first?
 4. For stand-total output, do you want only `total_c` and `net_change_c`, or also keep AWENH columns visible in DB from the beginning?
 5. Should the next PR include a migration/backward-compatibility note for existing consumers of simulation DB outputs?
+
+
+---
+
+## Plan update after PR review + historical dead/ code re-check
+
+### Reflection on what was implemented vs plan
+
+What moved forward:
+- Phase 1/2 direction is in place: stand-level inflow accounting exists, harvest residues are included, and component-level bookkeeping now explicitly covers `stem + branch + foliage + stump + roots`.
+- Species-group residue defaults were added (`pine/spruce/broadleaf`) as requested.
+- A climate-ready Yasso interface exists with a static Finland default profile and a hook for future stand-wise forcing.
+- AWENH pool columns are visible in DB output.
+
+What is still not aligned with the intended science-level integration:
+1. Repola support is still a **proxy mass equation**, not the explicit Repola function family from `BiomassmodelLibrary`.
+2. Yasso integration is still a **placeholder decay routine**, not a native `y07`/`mod5c` bridge.
+3. Historical `yasso07.py` structure uses **three litter channels** (`cwl`, `fwl`, `nwl`) each with AWENH stocks/inputs; current implementation still mixes inputs into one aggregate AWENH bucket.
+4. Historical dead-tree distribution (`species × snag/down × diameter × since_death`) is not yet represented in Mela2.0 state.
+5. Inflow source accounting lacks a persistent per-source ledger table (`mortality/harvest/disturbance`) and therefore still has double-counting risk in audits.
+
+### Historical integration notes (from `dead/` core files)
+
+- `dead/yasso07.py` runs `mod5c` separately for `cwl`, `fwl`, `nwl`, with climate tuple `(temp, rain, amplitude)` and per-channel AWENH stocks/infall.
+- `dead/BiomassmodelLibrary.c` function family `Biomass_tree_JKK` composes species-specific Repola components (living/dead branches, needles/leaves, stump, roots) and uses density models where needed.
+- `dead/DistributiondeadtreemodelLibrary.[ch]` defines dead-tree classes with dimensions: species, diameter class, years-since-death, and snag state.
+- `dead/NaturalremovalmodelLibrary.c` exposes competition/aging mortality probabilities by species/site context; this can later inform mortality-source splitting and calibration priors.
+
+### Updated next-step plan (priority order)
+
+#### Step 1 — Replace Repola proxy with explicit coefficient-backed component conversion
+- Build a coefficient-backed converter module that maps Mela species -> Repola variant (`pine/spruce/birch+other broadleaf`).
+- Keep component outputs explicit: stem, branch, foliage, stump, roots.
+- Add reference regression tests using frozen tuples extracted from `BiomassmodelLibrary` outputs.
+
+#### Step 2 — Reshape Yasso state to channel-aware bookkeeping
+- Add channel state model: `cwl_awenh`, `fwl_awenh`, `nwl_awenh` (each with A/W/E/N/H).
+- Define deterministic mapping from components to channels:
+  - coarse woody -> `cwl` (mainly stem, stump, coarse roots),
+  - fine woody -> `fwl` (branches, fine roots share),
+  - non-woody -> `nwl` (foliage and fine litter share).
+- Preserve stand-total outputs while keeping channel/pool values in DB columns.
+
+#### Step 3 — Integrate real Yasso backend behind adapter
+- Implement binary adapter path for `dead/y07.so` (`y07.pyd` guard on Windows).
+- Retain pure-Python fallback for CI portability.
+- Keep 5-year timestep as annual substeps and document exact stepping semantics.
+
+#### Step 4 — Explicit source-ledger output
+- Add DB table for source-specific inflows (`mortality`, `harvest`, `disturbance`) and net decomposition for auditability.
+- Add mass-balance validation checks at operation level.
+
+#### Step 5 — Begin distribution-state MVP (pre-diversity)
+- Add optional deadwood class state container (species × snag/down × diameter × since_death) without full biodiversity indicator yet.
+- Wire one minimal transition rule so the structure can be validated and exported.
+
+### Questions for user before next implementation PR
+
+1. **Repola source of truth:** Do you want the next PR to directly port equations from `BiomassmodelLibrary` now (for pine/spruce/broadleaf), or to first add a validated coefficient table that reproduces it numerically and port C formulas in the following PR?
+2. **Channel mapping policy:** Please confirm component-to-channel defaults:
+   - `stem + stump + coarse roots -> cwl`
+   - `branches + fine roots -> fwl`
+   - `foliage -> nwl`
+   Is this acceptable for MVP?
+3. **Roots split default:** For roots, should we use a fixed coarse/fine split in MVP (e.g. 70/30), and if yes, what default split do you prefer?
+4. **Yasso backend rollout:** For the next PR, should binary `y07` be the default backend when available (with automatic fallback), or should fallback remain default until parity tests are complete?
+5. **Climate source for now:** Confirm that the static Finland profile should remain default, and whether you want the code to already accept per-stand climate arrays from metadata (even if not yet populated).
+6. **Source-ledger schema:** Do you want the new ledger as one row per source per timestep, or one row with separate `mortality_c/harvest_c/disturbance_c` columns?
+7. **Distribution-state timing:** Should we include the initial deadwood class-state table already in next PR, or keep that for the following PR after binary Yasso is in place?
+8. **Validation targets:** Do you have any historical scenario/case (stand data + expected trends) we should use as acceptance checks for the next PR?

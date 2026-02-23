@@ -14,6 +14,16 @@ def _copy_reference_trees(trees: ReferenceTrees) -> ReferenceTrees:
     return trees[:] if trees.size > 0 else copy(trees)
 
 
+def _resolve_removed_trees(stand: ForestStand, **operation_parameters) -> ReferenceTrees | None:
+    if operation_parameters.get("removed_trees") is not None:
+        return operation_parameters["removed_trees"]
+
+    removed_trees = getattr(stand, "deadwood_removed_trees", None)
+    if removed_trees is not None:
+        stand.deadwood_removed_trees = None
+    return removed_trees
+
+
 def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> OpTuple[ForestStand]:
     stand = input_
     if not operation_parameters.get("enabled", False):
@@ -33,11 +43,10 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
         stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
         return stand, []
 
-    removed_trees = operation_parameters.get("removed_trees")
     inflows = build_deadwood_inflows(
         previous_trees=stand.deadwood_previous_trees,
         current_trees=stand.reference_trees,
-        removed_trees=removed_trees,
+        removed_trees=_resolve_removed_trees(stand, **operation_parameters),
         config=config,
     )
 

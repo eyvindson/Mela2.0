@@ -1051,10 +1051,10 @@ are to be used.
 A first deadwood integration scaffold is available in `lukefi.metsi.domain.deadwood`.
 
 Current defaults used in code:
-- Biomass equation policy default: `repola`
-- Harvest residues included in MVP: `True`
-- Backend path: `Yasso07Adapter` (binary-compatible adapter path can be wired later)
-- Output granularity: stand total first (pool-wise values are still stored in one stand-level record)
+- Biomass equation policy default: `repola` with explicit component split (`stem + branch + foliage + stump + roots`)
+- Harvest residues included in MVP: `True`, with species-group defaults (`pine=0.28`, `spruce=0.32`, `broadleaf=0.35`)
+- Backend path: `Yasso07Adapter` with static Finland-wide climate default and climate-provider hook for stand-wise forcing
+- Output granularity: stand total first (`total_c`, `net_change_c`) while AWENH pools remain visible in DB (`acid_c`, `water_c`, `ethanol_c`, `non_soluble_c`, `humus_c`)
 - Biodiversity indicator: postponed
 
 ### Operation: `update_deadwood_pools`
@@ -1068,8 +1068,11 @@ Parameters:
   - `equation_set` default `"repola"`
   - `include_harvest_residues` default `True`
   - `carbon_fraction` default `0.5`
-  - `residue_share_of_removed_biomass` default `0.3`
-- `backend`: Yasso backend implementation (default `Yasso07Adapter` placeholder)
-- `removed_trees`: optional removed-tree `ReferenceTrees` for harvest residue inflow.
+  - `residue_share_of_removed_biomass` default `0.3` (global fallback)
+  - `residue_share_by_species_group` default `{"pine": 0.28, "spruce": 0.32, "broadleaf": 0.35}`
+- `backend`: Yasso backend implementation (default `Yasso07Adapter`)
+  - `climate_default`: Finland-wide static profile (`3.5°C`, `600 mm`, amplitude `13°C`)
+  - `climate_provider`: optional callable for dynamic/stand-wise climate forcing
+- `removed_trees`: optional removed-tree `ReferenceTrees` for harvest residue inflow (if omitted, operation uses `stand.deadwood_removed_trees` when present).
 
 Example control profile: `control_deadwood_mvp.py`.

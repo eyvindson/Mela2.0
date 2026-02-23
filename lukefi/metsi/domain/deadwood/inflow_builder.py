@@ -2,14 +2,22 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from lukefi.metsi.data.enums.internal import TreeSpecies
 from lukefi.metsi.data.vector_model import ReferenceTrees
+from lukefi.metsi.domain.deadwood.biomass_conversion import (
+    RepolaBiomassConverterConfig,
+    RepolaProxyBiomassConverter,
+)
 from lukefi.metsi.domain.deadwood.types import DeadwoodInflows
 
 
 DEFAULT_EQUATION_SET = "repola"
 DEFAULT_INCLUDE_HARVEST_RESIDUES = True
 DEFAULT_CARBON_FRACTION = 0.5
+DEFAULT_RESIDUE_SHARE_BY_SPECIES_GROUP = {
+    "pine": 0.28,
+    "spruce": 0.32,
+    "broadleaf": 0.35,
+}
 
 
 @dataclass
@@ -18,6 +26,7 @@ class DeadwoodInflowConfig:
     include_harvest_residues: bool = DEFAULT_INCLUDE_HARVEST_RESIDUES
     carbon_fraction: float = DEFAULT_CARBON_FRACTION
     residue_share_of_removed_biomass: float = 0.3
+    residue_share_by_species_group: dict[str, float] | None = None
 
     def validate(self) -> None:
         if self.equation_set.lower() != DEFAULT_EQUATION_SET:
@@ -30,32 +39,12 @@ class DeadwoodInflowConfig:
         if not (0.0 <= self.residue_share_of_removed_biomass <= 1.0):
             raise ValueError("residue_share_of_removed_biomass must be between 0 and 1")
 
-
-def _species_group_factor(species_code: int) -> float:
-    try:
-        species = TreeSpecies(int(species_code))
-    except ValueError:
-        return 0.95
-    if species == TreeSpecies.PINE:
-        return 1.00
-    if species == TreeSpecies.SPRUCE:
-        return 1.05
-    return 0.95
-
-
-def _repola_proxy_carbon(reference_trees: ReferenceTrees, carbon_fraction: float) -> float:
-    if reference_trees.size == 0:
-        return 0.0
-
-    stems = np.nan_to_num(reference_trees.stems_per_ha, nan=0.0)
-    dbh = np.nan_to_num(reference_trees.breast_height_diameter, nan=0.0)
-    height = np.nan_to_num(reference_trees.height, nan=0.0)
-
-    species_factors = np.array([_species_group_factor(s) for s in reference_trees.species], dtype=float)
-
-    # Phase-1 proxy mass term (kg dry mass / ha), to be replaced by full Repola eq package in phase 2.
-    dry_mass = stems * (0.11 * (dbh ** 2) * np.maximum(height, 0.1)) * species_factors
-    return float(np.sum(np.maximum(dry_mass, 0.0)) * carbon_fraction)
+        residue_by_group = self.residue_share_by_species_group or DEFAULT_RESIDUE_SHARE_BY_SPECIES_GROUP
+        for group, share in residue_by_group.items():
+            if group not in {"pine", "spruce", "broadleaf"}:
+                raise ValueError(f"Unsupported species group '{group}'")
+            if not (0.0 <= share <= 1.0):
+                raise ValueError("residue_share_by_species_group values must be between 0 and 1")
 
 
 def _scale_stems(reference_trees: ReferenceTrees, new_stems_per_ha: np.ndarray) -> ReferenceTrees:
@@ -69,6 +58,10 @@ def mortality_inflow_from_tree_lists(
     current_trees: ReferenceTrees,
     config: DeadwoodInflowConfig,
 ) -> float:
+    converter = RepolaProxyBiomassConverter(
+        config=RepolaBiomassConverterConfig(carbon_fraction=config.carbon_fraction)
+    )
+
     prev_by_id = {identifier: i for i, identifier in enumerate(previous_trees.identifier.tolist())}
     curr_by_id = {identifier: i for i, identifier in enumerate(current_trees.identifier.tolist())}
 
@@ -88,14 +81,29 @@ def mortality_inflow_from_tree_lists(
 
     dead_slice = previous_trees[np.array(dead_indices, dtype=int)]
     dead_slice = _scale_stems(dead_slice, np.array(dead_stem_losses, dtype=float))
-    return _repola_proxy_carbon(dead_slice, config.carbon_fraction)
+    return converter.component_carbon_kg_per_ha(dead_slice).total_c
+
+
+def _residue_share_for_species_group(config: DeadwoodInflowConfig, species_group: str) -> float:
+    share_map = config.residue_share_by_species_group or DEFAULT_RESIDUE_SHARE_BY_SPECIES_GROUP
+    return float(share_map.get(species_group, config.residue_share_of_removed_biomass))
 
 
 def harvest_residue_inflow_from_removed_trees(removed_trees: ReferenceTrees, config: DeadwoodInflowConfig) -> float:
     if removed_trees.size == 0 or not config.include_harvest_residues:
         return 0.0
-    removed_carbon = _repola_proxy_carbon(removed_trees, config.carbon_fraction)
-    return removed_carbon * config.residue_share_of_removed_biomass
+
+    converter = RepolaProxyBiomassConverter(
+        config=RepolaBiomassConverterConfig(carbon_fraction=config.carbon_fraction)
+    )
+
+    total = 0.0
+    for idx in range(removed_trees.size):
+        tree_slice = removed_trees[np.array([idx], dtype=int)]
+        group = converter.species_group(int(tree_slice.species[0]))
+        residue_share = _residue_share_for_species_group(config, group)
+        total += converter.component_carbon_kg_per_ha(tree_slice).total_c * residue_share
+    return total
 
 
 def build_deadwood_inflows(

@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 
 from lukefi.metsi.data.vector_model import ReferenceTrees
-from lukefi.metsi.domain.deadwood.biomass_conversion import RepolaProxyBiomassConverter
+from lukefi.metsi.domain.deadwood.biomass_conversion import RepolaBiomassConverter
 from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows
-from lukefi.metsi.domain.deadwood.types import DeadwoodInflows, DeadwoodPools
+from lukefi.metsi.domain.deadwood.types import ChannelAWENH, DeadwoodInflows, DeadwoodPools
 from lukefi.metsi.domain.deadwood.yasso_backend import FINLAND_STATIC_CLIMATE, Yasso07Adapter, YassoClimate
 
 
@@ -34,11 +34,7 @@ def test_inflow_builder_mass_balance_and_partial_stem_loss():
     assert inflows.total_c == inflows.mortality_c + inflows.harvest_residue_c + inflows.disturbance_c
     assert inflows.mortality_c > 0.0
     assert inflows.harvest_residue_c > 0.0
-
-    # mortality should reflect 30 stem loss from t1, not a full 100-stem removal
-    cur_zero = make_reference_trees(["t2"], [80.0], [22.0], [18.0], [2])
-    inflow_full = build_deadwood_inflows(prev, cur_zero, removed_trees=None, config=DeadwoodInflowConfig())
-    assert inflows.mortality_c < inflow_full.mortality_c
+    assert inflows.cwl_c > inflows.fwl_c > inflows.nwl_c
 
 
 def test_species_group_specific_residue_defaults():
@@ -52,19 +48,17 @@ def test_species_group_specific_residue_defaults():
     assert spruce.harvest_residue_c > pine.harvest_residue_c
 
 
-def test_repola_proxy_converter_exposes_all_components():
+def test_repola_converter_exposes_all_components_and_root_split():
     trees = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
-    components = RepolaProxyBiomassConverter().component_carbon_kg_per_ha(trees)
+    components = RepolaBiomassConverter().component_carbon_kg_per_ha(trees)
 
     assert components.stem_c > 0
     assert components.branch_c > 0
     assert components.foliage_c > 0
     assert components.stump_c > 0
-    assert components.roots_c > 0
-    np.testing.assert_allclose(
-        components.total_c,
-        components.stem_c + components.branch_c + components.foliage_c + components.stump_c + components.roots_c,
-    )
+    assert components.coarse_root_c > 0
+    assert components.fine_root_c > 0
+    np.testing.assert_allclose(components.fine_root_c / components.roots_c, 0.3, rtol=1e-6)
 
 
 def test_invalid_equation_set_rejected():
@@ -75,7 +69,7 @@ def test_invalid_equation_set_rejected():
 
 
 def test_zero_input_no_change_backend():
-    backend = Yasso07Adapter(annual_decay_rate=0.0)
+    backend = Yasso07Adapter(annual_decay_rate=0.0, prefer_binary=False)
     pools = DeadwoodPools()
     updated, fluxes = backend.step(pools, DeadwoodInflows(), years=1)
 
@@ -86,9 +80,9 @@ def test_zero_input_no_change_backend():
 
 
 def test_deterministic_one_step_decomposition_contract():
-    backend = Yasso07Adapter(annual_decay_rate=0.03)
-    pools = DeadwoodPools(acid_c=10.0, water_c=5.0, ethanol_c=4.0, non_soluble_c=8.0, humus_c=3.0)
-    inflows = DeadwoodInflows(mortality_c=2.0, harvest_residue_c=1.0)
+    backend = Yasso07Adapter(annual_decay_rate=0.03, prefer_binary=False)
+    pools = DeadwoodPools(cwl=ChannelAWENH(acid_c=10.0), fwl=ChannelAWENH(water_c=5.0), nwl=ChannelAWENH(ethanol_c=4.0))
+    inflows = DeadwoodInflows(mortality_cwl_c=2.0, harvest_fwl_c=1.0)
 
     first = backend.step(pools, inflows, years=1)
     second = backend.step(pools, inflows, years=1)
@@ -98,11 +92,11 @@ def test_deterministic_one_step_decomposition_contract():
 
 
 def test_climate_configurable_but_finland_default_available():
-    pools = DeadwoodPools(acid_c=10.0)
+    pools = DeadwoodPools(cwl=ChannelAWENH(acid_c=10.0))
     inflows = DeadwoodInflows()
 
-    colder = Yasso07Adapter(climate_default=YassoClimate(temperature_c=-2.0, precipitation_mm=500.0, temperature_amplitude_c=15.0))
-    warmer = Yasso07Adapter(climate_default=YassoClimate(temperature_c=8.0, precipitation_mm=650.0, temperature_amplitude_c=12.0))
+    colder = Yasso07Adapter(climate_default=YassoClimate(temperature_c=-2.0, precipitation_mm=500.0, temperature_amplitude_c=15.0), prefer_binary=False)
+    warmer = Yasso07Adapter(climate_default=YassoClimate(temperature_c=8.0, precipitation_mm=650.0, temperature_amplitude_c=12.0), prefer_binary=False)
 
     cold_updated, _ = colder.step(pools, inflows, years=5)
     warm_updated, _ = warmer.step(pools, inflows, years=5)

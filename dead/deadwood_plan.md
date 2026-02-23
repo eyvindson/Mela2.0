@@ -289,3 +289,98 @@ What is still not aligned with the intended science-level integration:
 6. **Source-ledger schema:** Do you want the new ledger as one row per source per timestep, or one row with separate `mortality_c/harvest_c/disturbance_c` columns?
 7. **Distribution-state timing:** Should we include the initial deadwood class-state table already in next PR, or keep that for the following PR after binary Yasso is in place?
 8. **Validation targets:** Do you have any historical scenario/case (stand data + expected trends) we should use as acceptance checks for the next PR?
+
+---
+
+## Plan refresh after unsatisfied PR review (current cycle)
+
+### What likely went wrong in the previous PR (technical reflection)
+
+After re-reading the implementation and the historical `dead/` sources, the previous PR appears to have moved in the right direction conceptually, but there are still integration risks that can explain dissatisfaction:
+
+1. **Scientific parity is not yet proven**
+   - Repola equations were ported, but there is still no parity harness that numerically compares Python outputs against the legacy C implementation across representative `(species, dbh, height, stems)` tuples.
+   - Without this, we cannot guarantee equation-family correctness and unit consistency end-to-end.
+
+2. **Yasso stepping semantics are still incomplete against historical flow**
+   - The `dead/yasso07.py` reference runs channel-specific `mod5c` with `infall / dur` and relies on model-internal handling for duration.
+   - The current adapter does call `mod5c`, but we still lack a validated parity check against reference trajectories (including 5-year steps, channel diameters, and climate settings).
+
+3. **Channelized state is present, but reporting contract is still under-specified**
+   - DB schema now stores channel totals and source-ledger rows, but consumers and migration expectations are not yet documented as a versioned contract.
+   - There is no agreed compatibility strategy for existing readers expecting previous deadwood columns.
+
+4. **Testing remains too shallow for this integration stage**
+   - Unit-style tests exist, but there is still no scenario-level acceptance test that executes growth + removals + deadwood update and verifies DB outputs and mass balance for each source.
+
+5. **Event wiring still depends on ad-hoc stand attributes**
+   - Residue and climate inputs can be injected through stand attributes (`deadwood_removed_trees`, `deadwood_climate`), but there is no finalized pipeline contract from collected simulation outputs to deadwood operation inputs.
+
+### Research notes from source re-check (what still must be mirrored)
+
+1. **`dead/BiomassmodelLibrary.c`**
+   - The Repola family includes species-specific formulas with different predictors (some require `log(h)`, some `h/(h+k)`, and birch roots depend on both `d` and `h`).
+   - This means acceptance tests must cover low/high DBH and height edge ranges per species, not just one nominal value.
+
+2. **`dead/yasso07.py`**
+   - Explicitly maintains three channels (`cwl`, `fwl`, `nwl`) each with AWENH stock vectors and channel-specific diameter handling.
+   - Any MVP claiming parity should at minimum validate channel-wise behavior and not only stand-total carbon.
+
+3. **`dead/DistributiondeadtreemodelLibrary.[ch]`**
+   - Class-state dimensions are already defined in legacy logic, so the next realistic step is table/schema scaffolding and state persistence before indicator formulas.
+
+4. **`dead/NaturalremovalmodelLibrary.[ch]`**
+   - Even if not directly ported now, this can provide priors/logic for future separation of mortality sources (competition vs background vs disturbance).
+
+### Core tasks remaining (ordered)
+
+#### Task 1 — Build parity harnesses before new logic expansion
+- Add executable parity tests for Repola formulas against frozen reference values derived from legacy functions.
+- Add Yasso parity smoke tests for one-step and multi-step channel trajectories (with static Finland climate).
+
+#### Task 2 — Finalize data contracts for deadwood outputs
+- Version and document DB schema for:
+  - `deadwood_pools` (channel totals + optional channel AWENH columns),
+  - `deadwood_source_ledger` (one row per source per timestep).
+- Add migration notes and compatibility policy for downstream consumers.
+
+#### Task 3 — Solidify operation input wiring
+- Replace implicit stand-attribute handoff with an explicit operation contract from simulation events/collected data.
+- Ensure no double counting between mortality signal and removed-tree residues.
+
+#### Task 4 — Add scenario-level integration validation
+- Introduce one deterministic integration scenario (mortality + harvest in same step).
+- Assert:
+  - per-source inflow sums,
+  - decomposition + stock mass balance,
+  - DB row existence and schema-level correctness.
+
+#### Task 5 — Prepare distribution-state scaffolding (next PR after parity)
+- Add class-state storage schema only (no full indicator yet).
+- Include minimal transition placeholder to validate persistence and future integration path.
+
+### Updated questions for user (to unlock the next PR cleanly)
+
+1. **Parity threshold policy:**
+   - What numeric tolerance should we require for Repola parity tests vs legacy reference values (e.g. relative error ≤ 1e-6, 1e-4, or other)?
+
+2. **Reference set scope:**
+   - Do you prefer a small curated parity set (fast CI) or a broader grid across DBH/height/species (slower but more robust)?
+
+3. **Output contract strictness:**
+   - Should we freeze `deadwood_pools` as channel totals only for MVP, or include optional per-channel AWENH columns now to avoid future schema churn?
+
+4. **Ledger semantics:**
+   - Confirm that the source ledger should remain **one row per source per timestep** and whether decomposition should also be source-attributed or remain stand-level aggregate for now.
+
+5. **Operation wiring policy:**
+   - Do you want deadwood update to consume removals/climate only through explicit operation parameters (strict), or keep metadata fallback paths for transitional compatibility?
+
+6. **Acceptance scenario definition:**
+   - Can you provide one canonical stand scenario (or even rough expected trend constraints) for acceptance, e.g. “post-harvest deadwood rises sharply then declines over the next two steps”?
+
+7. **Distribution-state start point:**
+   - Should the next PR include only schema + persistence for class-state, or also a minimal deterministic transition rule to validate dynamics?
+
+8. **Backend rollout guardrail:**
+   - If binary `y07` and fallback disagree beyond tolerance, should simulation fail fast, log warning and continue, or force fallback for that run?

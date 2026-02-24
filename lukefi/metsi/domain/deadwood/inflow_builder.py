@@ -26,6 +26,7 @@ class DeadwoodInflowConfig:
     fine_root_fraction: float = DEFAULT_FINE_ROOT_FRACTION
     residue_share_of_removed_biomass: float = 0.3
     residue_share_by_species_group: dict[str, float] | None = None
+    initial_deadwood_share_of_living_biomass: float = 0.02
 
     def validate(self) -> None:
         if self.equation_set.lower() != DEFAULT_EQUATION_SET:
@@ -36,6 +37,8 @@ class DeadwoodInflowConfig:
             raise ValueError("fine_root_fraction must be between 0 and 1")
         if not (0.0 <= self.residue_share_of_removed_biomass <= 1.0):
             raise ValueError("residue_share_of_removed_biomass must be between 0 and 1")
+        if not (0.0 <= self.initial_deadwood_share_of_living_biomass <= 1.0):
+            raise ValueError("initial_deadwood_share_of_living_biomass must be between 0 and 1")
 
 
 def _scale_stems(reference_trees: ReferenceTrees, new_stems_per_ha: np.ndarray) -> ReferenceTrees:
@@ -53,6 +56,22 @@ def _to_channelized_inflow(components, residue_share: float = 1.0) -> tuple[floa
     fwl_c = (components.branch_c + components.fine_root_c) * residue_share
     nwl_c = components.foliage_c * residue_share
     return cwl_c, fwl_c, nwl_c
+
+
+def estimate_initial_deadwood_channels(reference_trees: ReferenceTrees, config: DeadwoodInflowConfig) -> tuple[float, float, float]:
+    if reference_trees.size == 0 or config.initial_deadwood_share_of_living_biomass <= 0.0:
+        return 0.0, 0.0, 0.0
+
+    converter = RepolaBiomassConverter(
+        config=RepolaBiomassConverterConfig(
+            carbon_fraction=config.carbon_fraction,
+            fine_root_fraction=config.fine_root_fraction,
+        )
+    )
+    return _to_channelized_inflow(
+        converter.component_carbon_kg_per_ha(reference_trees),
+        residue_share=config.initial_deadwood_share_of_living_biomass,
+    )
 
 
 def mortality_inflow_from_tree_lists(previous_trees: ReferenceTrees, current_trees: ReferenceTrees, config: DeadwoodInflowConfig) -> tuple[float, float, float]:

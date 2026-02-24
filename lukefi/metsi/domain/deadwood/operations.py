@@ -3,8 +3,8 @@ from copy import copy
 from lukefi.metsi.data.model import ForestStand
 from lukefi.metsi.data.vector_model import ReferenceTrees
 from lukefi.metsi.domain.deadwood.collected_data import DeadwoodPoolsData
-from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows
-from lukefi.metsi.domain.deadwood.types import DeadwoodState
+from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows, estimate_initial_deadwood_channels
+from lukefi.metsi.domain.deadwood.types import DeadwoodFluxes, DeadwoodInflows, DeadwoodState
 from lukefi.metsi.domain.deadwood.yasso_backend import Yasso07Adapter, YassoClimate
 from lukefi.metsi.sim.collected_data import OpTuple
 from lukefi.metsi.sim.treatment import Treatment
@@ -55,6 +55,24 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
 
     if not hasattr(stand, "deadwood_previous_trees"):
         stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
+        if stand.deadwood_state.pools.total_c <= 0.0:
+            seed_cwl, seed_fwl, seed_nwl = estimate_initial_deadwood_channels(stand.reference_trees, config)
+            awenh_share = getattr(backend, "awenh_share", Yasso07Adapter().awenh_share)
+            if seed_cwl > 0.0:
+                stand.deadwood_state.pools.cwl.add_inflow(seed_cwl, awenh_share)
+            if seed_fwl > 0.0:
+                stand.deadwood_state.pools.fwl.add_inflow(seed_fwl, awenh_share)
+            if seed_nwl > 0.0:
+                stand.deadwood_state.pools.nwl.add_inflow(seed_nwl, awenh_share)
+            stand_year = int(getattr(stand, "year", 0) or 0)
+            return stand, [
+                DeadwoodPoolsData(
+                    pools=stand.deadwood_state.pools,
+                    fluxes=DeadwoodFluxes(input_c=0.0, decomposition_c=0.0, net_change_c=0.0),
+                    inflows=DeadwoodInflows(),
+                    year=stand_year,
+                )
+            ]
         return stand, []
 
     inflows = build_deadwood_inflows(

@@ -1071,6 +1071,7 @@ Parameters:
   - `fine_root_fraction` default `0.3` (70/30 coarse/fine roots split)
   - `residue_share_of_removed_biomass` default `0.3` (global fallback)
   - `residue_share_by_species_group` default `{"pine": 0.28, "spruce": 0.32, "broadleaf": 0.35}`
+  - `initial_deadwood_share_of_living_biomass` default `0.02` to seed an initial deadwood stock (set to `0.0` to disable)
 - `backend`: Yasso backend implementation (default `Yasso07Adapter`)
   - `climate_default`: Finland-wide static profile (`3.5°C`, `600 mm`, amplitude `13°C`)
   - `climate_provider`: optional callable for dynamic/stand-wise climate forcing

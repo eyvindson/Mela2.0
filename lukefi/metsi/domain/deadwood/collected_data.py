@@ -11,8 +11,8 @@ class DeadwoodPoolsData(CollectedData):
     pools: DeadwoodPools
     fluxes: DeadwoodFluxes
     inflows: DeadwoodInflows
-    source_fluxes: dict[str, DeadwoodFluxes] | None = None
     year: int
+    source_fluxes: dict[str, DeadwoodFluxes] | None = None
 
     @classmethod
     @override

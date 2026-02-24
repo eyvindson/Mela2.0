@@ -54,6 +54,23 @@ def test_update_deadwood_without_initial_share_keeps_previous_bootstrap_behavior
     assert collected == []
 
 
+def test_update_deadwood_consumes_growth_model_mortality_on_first_call():
+    stand = ForestStand(identifier="s2b", year=2022)
+    stand.reference_trees = make_reference_trees(["t1"], [120.0], [22.0], [18.0], [1])
+    stand.deadwood_growth_mortality_trees = make_reference_trees(["t1"], [5.0], [22.0], [18.0], [1])
+
+    _, collected = update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        deadwood_config=DeadwoodInflowConfig(initial_deadwood_share_of_living_biomass=0.02),
+        backend=Yasso07Adapter(prefer_binary=False),
+    )
+
+    assert len(collected) == 1
+    assert collected[0].inflows.mortality_c > 0.0
+    assert collected[0].source_fluxes["mortality"].input_c > 0.0
+
+
 def test_seeded_no_management_branch_decomposes_without_new_inputs():
     stand = ForestStand(identifier="s3", year=2022)
     stand.reference_trees = make_reference_trees(["t1"], [120.0], [22.0], [18.0], [1])

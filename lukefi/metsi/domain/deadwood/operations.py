@@ -54,7 +54,9 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
     if not hasattr(stand, "deadwood_state"):
         stand.deadwood_state = DeadwoodState()
 
+    bootstrapped_previous_trees = False
     if not hasattr(stand, "deadwood_previous_trees"):
+        bootstrapped_previous_trees = True
         stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
         if stand.deadwood_state.pools.total_c <= 0.0:
             seed_cwl, seed_fwl, seed_nwl = estimate_initial_deadwood_channels(stand.reference_trees, config)
@@ -65,15 +67,8 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
                 stand.deadwood_state.pools.fwl.add_inflow(seed_fwl, awenh_share)
             if seed_nwl > 0.0:
                 stand.deadwood_state.pools.nwl.add_inflow(seed_nwl, awenh_share)
-            stand_year = int(getattr(stand, "year", 0) or 0)
-            return stand, [
-                DeadwoodPoolsData(
-                    pools=stand.deadwood_state.pools,
-                    fluxes=DeadwoodFluxes(input_c=0.0, decomposition_c=0.0, net_change_c=0.0),
-                    inflows=DeadwoodInflows(),
-                    year=stand_year,
-                )
-            ]
+
+    if bootstrapped_previous_trees and stand.deadwood_state.pools.total_c <= 0.0:
         return stand, []
 
     inflows = build_deadwood_inflows(

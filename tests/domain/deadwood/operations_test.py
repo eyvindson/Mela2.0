@@ -37,7 +37,8 @@ def test_update_deadwood_seeds_initial_pool_from_living_biomass():
     assert out_stand.deadwood_state.pools.total_c > 0.0
     assert len(collected) == 1
     assert collected[0].pools.total_c > 0.0
-    assert collected[0].fluxes.input_c == 0.0
+    assert collected[0].fluxes.input_c > 0.0
+    assert collected[0].source_fluxes["mortality"].input_c > 0.0
 
 
 def test_update_deadwood_without_initial_share_keeps_previous_bootstrap_behavior():

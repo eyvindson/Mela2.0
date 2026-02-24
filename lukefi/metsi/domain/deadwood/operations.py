@@ -23,6 +23,13 @@ def _resolve_removed_trees(stand: ForestStand, **operation_parameters) -> Refere
     return removed_trees
 
 
+def _resolve_growth_mortality_trees(stand: ForestStand) -> ReferenceTrees | None:
+    mortality_trees = getattr(stand, "deadwood_growth_mortality_trees", None)
+    if mortality_trees is not None:
+        stand.deadwood_growth_mortality_trees = None
+    return mortality_trees
+
+
 def _climate_provider_from_metadata(stand: ForestStand):
     climate = getattr(stand, "deadwood_climate", None)
     if isinstance(climate, (list, tuple)) and len(climate) >= 3:
@@ -54,6 +61,7 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
         previous_trees=stand.deadwood_previous_trees,
         current_trees=stand.reference_trees,
         removed_trees=_resolve_removed_trees(stand, **operation_parameters),
+        growth_mortality_trees=_resolve_growth_mortality_trees(stand),
         config=config,
     )
 

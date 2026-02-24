@@ -84,6 +84,19 @@ def mortality_inflow_from_tree_lists(previous_trees: ReferenceTrees, current_tre
     return _to_channelized_inflow(converter.component_carbon_kg_per_ha(dead_slice))
 
 
+def mortality_inflow_from_growth_model(mortality_trees: ReferenceTrees, config: DeadwoodInflowConfig) -> tuple[float, float, float]:
+    if mortality_trees.size == 0:
+        return 0.0, 0.0, 0.0
+
+    converter = RepolaBiomassConverter(
+        config=RepolaBiomassConverterConfig(
+            carbon_fraction=config.carbon_fraction,
+            fine_root_fraction=config.fine_root_fraction,
+        )
+    )
+    return _to_channelized_inflow(converter.component_carbon_kg_per_ha(mortality_trees))
+
+
 def _residue_share_for_species_group(config: DeadwoodInflowConfig, species_group: str) -> float:
     share_map = config.residue_share_by_species_group or DEFAULT_RESIDUE_SHARE_BY_SPECIES_GROUP
     return float(share_map.get(species_group, config.residue_share_of_removed_biomass))
@@ -116,12 +129,16 @@ def build_deadwood_inflows(
     previous_trees: ReferenceTrees,
     current_trees: ReferenceTrees,
     removed_trees: ReferenceTrees | None = None,
+    growth_mortality_trees: ReferenceTrees | None = None,
     config: DeadwoodInflowConfig | None = None,
 ) -> DeadwoodInflows:
     config = config or DeadwoodInflowConfig()
     config.validate()
 
-    mortality_cwl, mortality_fwl, mortality_nwl = mortality_inflow_from_tree_lists(previous_trees, current_trees, config)
+    if growth_mortality_trees is not None:
+        mortality_cwl, mortality_fwl, mortality_nwl = mortality_inflow_from_growth_model(growth_mortality_trees, config)
+    else:
+        mortality_cwl, mortality_fwl, mortality_nwl = mortality_inflow_from_tree_lists(previous_trees, current_trees, config)
     harvest_cwl = harvest_fwl = harvest_nwl = 0.0
     if removed_trees is not None:
         harvest_cwl, harvest_fwl, harvest_nwl = harvest_residue_inflow_from_removed_trees(removed_trees, config)

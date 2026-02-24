@@ -11,6 +11,7 @@ class DeadwoodPoolsData(CollectedData):
     pools: DeadwoodPools
     fluxes: DeadwoodFluxes
     inflows: DeadwoodInflows
+    source_fluxes: dict[str, DeadwoodFluxes] | None = None
     year: int
 
     @classmethod
@@ -23,14 +24,29 @@ class DeadwoodPoolsData(CollectedData):
                 node TEXT,
                 stand TEXT,
                 year INTEGER,
+                cwl_acid_c REAL,
+                cwl_water_c REAL,
+                cwl_ethanol_c REAL,
+                cwl_non_soluble_c REAL,
+                cwl_humus_c REAL,
                 cwl_c REAL,
+                fwl_acid_c REAL,
+                fwl_water_c REAL,
+                fwl_ethanol_c REAL,
+                fwl_non_soluble_c REAL,
+                fwl_humus_c REAL,
                 fwl_c REAL,
+                nwl_acid_c REAL,
+                nwl_water_c REAL,
+                nwl_ethanol_c REAL,
+                nwl_non_soluble_c REAL,
+                nwl_humus_c REAL,
                 nwl_c REAL,
                 total_c REAL,
                 input_c REAL,
                 decomposition_c REAL,
                 net_change_c REAL,
-                PRIMARY KEY (node, stand),
+                PRIMARY KEY (node, stand, year),
                 FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
             )
             """
@@ -43,7 +59,9 @@ class DeadwoodPoolsData(CollectedData):
                 source TEXT,
                 year INTEGER,
                 input_c REAL,
-                PRIMARY KEY (node, stand, source),
+                decomposition_c REAL,
+                net_change_c REAL,
+                PRIMARY KEY (node, stand, source, year),
                 FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
             )
             """
@@ -55,14 +73,29 @@ class DeadwoodPoolsData(CollectedData):
         cur.execute(
             """
             INSERT INTO deadwood_pools
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 node_str,
                 identifier,
                 self.year,
+                self.pools.cwl.acid_c,
+                self.pools.cwl.water_c,
+                self.pools.cwl.ethanol_c,
+                self.pools.cwl.non_soluble_c,
+                self.pools.cwl.humus_c,
                 self.pools.cwl.total_c,
+                self.pools.fwl.acid_c,
+                self.pools.fwl.water_c,
+                self.pools.fwl.ethanol_c,
+                self.pools.fwl.non_soluble_c,
+                self.pools.fwl.humus_c,
                 self.pools.fwl.total_c,
+                self.pools.nwl.acid_c,
+                self.pools.nwl.water_c,
+                self.pools.nwl.ethanol_c,
+                self.pools.nwl.non_soluble_c,
+                self.pools.nwl.humus_c,
                 self.pools.nwl.total_c,
                 self.pools.total_c,
                 self.fluxes.input_c,
@@ -73,11 +106,35 @@ class DeadwoodPoolsData(CollectedData):
         cur.executemany(
             """
             INSERT INTO deadwood_source_ledger
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                (node_str, identifier, "mortality", self.year, self.inflows.mortality_c),
-                (node_str, identifier, "harvest", self.year, self.inflows.harvest_residue_c),
-                (node_str, identifier, "disturbance", self.year, self.inflows.disturbance_c),
+                (
+                    node_str,
+                    identifier,
+                    "mortality",
+                    self.year,
+                    self.inflows.mortality_c,
+                    (self.source_fluxes or {}).get("mortality", DeadwoodFluxes()).decomposition_c,
+                    (self.source_fluxes or {}).get("mortality", DeadwoodFluxes()).net_change_c,
+                ),
+                (
+                    node_str,
+                    identifier,
+                    "harvest",
+                    self.year,
+                    self.inflows.harvest_residue_c,
+                    (self.source_fluxes or {}).get("harvest", DeadwoodFluxes()).decomposition_c,
+                    (self.source_fluxes or {}).get("harvest", DeadwoodFluxes()).net_change_c,
+                ),
+                (
+                    node_str,
+                    identifier,
+                    "disturbance",
+                    self.year,
+                    self.inflows.disturbance_c,
+                    (self.source_fluxes or {}).get("disturbance", DeadwoodFluxes()).decomposition_c,
+                    (self.source_fluxes or {}).get("disturbance", DeadwoodFluxes()).net_change_c,
+                ),
             ],
         )

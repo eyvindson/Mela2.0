@@ -384,3 +384,60 @@ After re-reading the implementation and the historical `dead/` sources, the prev
 
 8. **Backend rollout guardrail:**
    - If binary `y07` and fallback disagree beyond tolerance, should simulation fail fast, log warning and continue, or force fallback for that run?
+
+
+---
+
+## Plan revision after unsatisfied PR (decision-locked implementation track)
+
+This section supersedes ambiguity from earlier drafts and translates the latest guidance into concrete next-PR scope.
+
+### Locked decisions (from product/science guidance)
+
+1. **Parity tolerance:** use relative error threshold **1e-4** for Repola and backend parity checks.
+2. **Parity dataset scope:** start with a **small curated** reference set for CI speed.
+3. **Output contract:** keep channel totals and include **optional per-channel AWENH columns now** to avoid schema churn.
+4. **Ledger semantics:** keep **one row per source per timestep** and make **decomposition source-attributed** (not stand-only aggregate).
+5. **Operation wiring:** keep **metadata fallback paths** for transitional compatibility while explicit operation wiring is introduced.
+6. **Acceptance trend:** expected behavior is **post-harvest deadwood spike**, then decline over **10–15 years** until decomposition exceeds natural-mortality input.
+7. **Distribution-state start point:** include **schema/persistence + deterministic transition rule** in the near-term integration track.
+8. **Backend disagreement policy:** if binary `y07` and fallback disagree beyond tolerance, **log warning and continue**.
+
+### Remaining work (re-prioritized)
+
+#### Step 1 — Build a parity harness that is auditable and fast
+- Add a curated Repola parity fixture table (species × DBH × height × stems) with frozen expected outputs.
+- Add curated Yasso channel-wise parity fixtures (`cwl`, `fwl`, `nwl`) for one-step and multi-step trajectories.
+- Enforce `rel_err <= 1e-4`; report warning details for diagnostics, but keep rollout behavior aligned with runtime policy.
+
+#### Step 2 — Finalize and document deadwood DB contract
+- Keep `deadwood_pools` with stand totals + optional AWENH columns.
+- Keep `deadwood_source_ledger` one row per source per timestep with `input_c`, `decomposition_c`, `net_change_c`.
+- Add explicit schema/version notes and downstream compatibility guidance in README.
+
+#### Step 3 — Formalize operation wiring (without breaking transition paths)
+- Introduce explicit operation parameter contract for removals and climate.
+- Keep metadata fallback (`deadwood_removed_trees`, `deadwood_growth_mortality_trees`, `deadwood_climate`) active for compatibility.
+- Add guard tests to prevent mortality/harvest double counting.
+
+#### Step 4 — Add acceptance scenario test aligned with expected dynamics
+- Add deterministic scenario asserting:
+  - post-harvest pool increase,
+  - decline over subsequent steps spanning 10–15 years,
+  - eventual decomposition greater than natural mortality input.
+
+#### Step 5 — Keep distribution-state MVP minimal but persistent
+- Persist class-state with deterministic transition logic for validation.
+- Postpone full biodiversity indicator math until parity and contract tasks are complete.
+
+### Key open implementation questions for next coding PR
+
+1. Should curated parity fixtures be generated directly from legacy `dead/` code and committed as static test data, or prepared manually from reviewed reference outputs?
+2. For CI gating, should curated parity failures block merge immediately, or run as warning-only for one transition cycle?
+3. Do we need a compatibility view/adapter for legacy DB readers during one release cycle, or can consumers migrate directly to the updated schema?
+4. For acceptance scenario data, should we use synthetic deterministic fixtures only, or bind to one existing stand resource for cross-module realism?
+
+### Suggested immediate next PR scope (strict)
+
+- Deliver only: curated parity harness + DB contract documentation + operation-wiring contract tests.
+- Defer additional feature expansion until parity and contract checks are green.

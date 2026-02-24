@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 from typing import Callable
 
@@ -28,6 +29,7 @@ class YassoClimate:
 
 
 FINLAND_STATIC_CLIMATE = YassoClimate(temperature_c=3.5, precipitation_mm=600.0, temperature_amplitude_c=13.0)
+LOGGER = logging.getLogger(__name__)
 
 
 class YassoBackend:
@@ -44,6 +46,7 @@ class Yasso07Adapter(YassoBackend):
     prefer_binary: bool = True
     cwl_diameter_cm: float = 10.0
     fwl_diameter_cm: float = 2.0
+    parity_rel_tolerance: float = 1e-4
 
     def _resolve_climate(self) -> YassoClimate:
         return self.climate_provider() if self.climate_provider is not None else self.climate_default
@@ -91,6 +94,20 @@ class Yasso07Adapter(YassoBackend):
                 fwl=ChannelAWENH(*[float(v) for v in fwl]),
                 nwl=ChannelAWENH(*[float(v) for v in nwl]),
             )
+
+            parity = DeadwoodPools(
+                cwl=self._apply_fallback(pools.cwl, inflows.cwl_c, years, climate),
+                fwl=self._apply_fallback(pools.fwl, inflows.fwl_c, years, climate),
+                nwl=self._apply_fallback(pools.nwl, inflows.nwl_c, years, climate),
+            )
+            ref = max(abs(updated.total_c), 1e-9)
+            rel_err = abs(updated.total_c - parity.total_c) / ref
+            if rel_err > self.parity_rel_tolerance:
+                LOGGER.warning(
+                    "Yasso binary/fallback parity mismatch rel_err=%s exceeds tolerance=%s; continuing with binary backend",
+                    rel_err,
+                    self.parity_rel_tolerance,
+                )
         else:
             updated = DeadwoodPools(
                 cwl=self._apply_fallback(pools.cwl, inflows.cwl_c, years, climate),

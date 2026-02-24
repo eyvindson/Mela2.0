@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 
 from lukefi.metsi.data.model import ForestStand
 from lukefi.metsi.data.vector_model import ReferenceTrees
@@ -54,29 +54,46 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
     if not hasattr(stand, "deadwood_state"):
         stand.deadwood_state = DeadwoodState()
 
+    bootstrap_inflows = DeadwoodInflows()
     bootstrapped_previous_trees = False
     if not hasattr(stand, "deadwood_previous_trees"):
         bootstrapped_previous_trees = True
         stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
         if stand.deadwood_state.pools.total_c <= 0.0:
             seed_cwl, seed_fwl, seed_nwl = estimate_initial_deadwood_channels(stand.reference_trees, config)
-            awenh_share = getattr(backend, "awenh_share", Yasso07Adapter().awenh_share)
-            if seed_cwl > 0.0:
-                stand.deadwood_state.pools.cwl.add_inflow(seed_cwl, awenh_share)
-            if seed_fwl > 0.0:
-                stand.deadwood_state.pools.fwl.add_inflow(seed_fwl, awenh_share)
-            if seed_nwl > 0.0:
-                stand.deadwood_state.pools.nwl.add_inflow(seed_nwl, awenh_share)
+            bootstrap_inflows = DeadwoodInflows(
+                mortality_cwl_c=seed_cwl,
+                mortality_fwl_c=seed_fwl,
+                mortality_nwl_c=seed_nwl,
+            )
 
-    if bootstrapped_previous_trees and stand.deadwood_state.pools.total_c <= 0.0:
+    if bootstrapped_previous_trees and (stand.deadwood_state.pools.total_c + bootstrap_inflows.total_c) <= 0.0:
         return stand, []
 
-    inflows = build_deadwood_inflows(
+    if stand.deadwood_state.pools.total_c > 0.0 and not stand.deadwood_state.source_pools:
+        stand.deadwood_state.source_pools = {
+            "mortality": deepcopy(stand.deadwood_state.pools),
+            "harvest": DeadwoodState().pools,
+            "disturbance": DeadwoodState().pools,
+        }
+
+    measured_inflows = build_deadwood_inflows(
         previous_trees=stand.deadwood_previous_trees,
         current_trees=stand.reference_trees,
         removed_trees=_resolve_removed_trees(stand, **operation_parameters),
         growth_mortality_trees=_resolve_growth_mortality_trees(stand),
         config=config,
+    )
+    inflows = DeadwoodInflows(
+        mortality_cwl_c=measured_inflows.mortality_cwl_c + bootstrap_inflows.mortality_cwl_c,
+        mortality_fwl_c=measured_inflows.mortality_fwl_c + bootstrap_inflows.mortality_fwl_c,
+        mortality_nwl_c=measured_inflows.mortality_nwl_c + bootstrap_inflows.mortality_nwl_c,
+        harvest_cwl_c=measured_inflows.harvest_cwl_c,
+        harvest_fwl_c=measured_inflows.harvest_fwl_c,
+        harvest_nwl_c=measured_inflows.harvest_nwl_c,
+        disturbance_cwl_c=measured_inflows.disturbance_cwl_c,
+        disturbance_fwl_c=measured_inflows.disturbance_fwl_c,
+        disturbance_nwl_c=measured_inflows.disturbance_nwl_c,
     )
 
     source_inflows = {

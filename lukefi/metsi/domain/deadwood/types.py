@@ -78,6 +78,31 @@ class DeadwoodPools:
     def total_c(self) -> float:
         return self.cwl.total_c + self.fwl.total_c + self.nwl.total_c
 
+    def add(self, other: "DeadwoodPools") -> "DeadwoodPools":
+        return DeadwoodPools(
+            cwl=ChannelAWENH(
+                acid_c=self.cwl.acid_c + other.cwl.acid_c,
+                water_c=self.cwl.water_c + other.cwl.water_c,
+                ethanol_c=self.cwl.ethanol_c + other.cwl.ethanol_c,
+                non_soluble_c=self.cwl.non_soluble_c + other.cwl.non_soluble_c,
+                humus_c=self.cwl.humus_c + other.cwl.humus_c,
+            ),
+            fwl=ChannelAWENH(
+                acid_c=self.fwl.acid_c + other.fwl.acid_c,
+                water_c=self.fwl.water_c + other.fwl.water_c,
+                ethanol_c=self.fwl.ethanol_c + other.fwl.ethanol_c,
+                non_soluble_c=self.fwl.non_soluble_c + other.fwl.non_soluble_c,
+                humus_c=self.fwl.humus_c + other.fwl.humus_c,
+            ),
+            nwl=ChannelAWENH(
+                acid_c=self.nwl.acid_c + other.nwl.acid_c,
+                water_c=self.nwl.water_c + other.nwl.water_c,
+                ethanol_c=self.nwl.ethanol_c + other.nwl.ethanol_c,
+                non_soluble_c=self.nwl.non_soluble_c + other.nwl.non_soluble_c,
+                humus_c=self.nwl.humus_c + other.nwl.humus_c,
+            ),
+        )
+
 
 @dataclass
 class DeadwoodFluxes:
@@ -99,3 +124,5 @@ class DeadwoodClassState:
 class DeadwoodState:
     pools: DeadwoodPools = field(default_factory=DeadwoodPools)
     latest_fluxes: DeadwoodFluxes = field(default_factory=DeadwoodFluxes)
+    source_pools: dict[str, DeadwoodPools] = field(default_factory=dict)
+    class_state: list[DeadwoodClassState] = field(default_factory=list)

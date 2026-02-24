@@ -106,6 +106,17 @@ def _is_math_domain_error(exc: Exception) -> bool:
 
 
 
+def _build_growth_mortality_snapshot(trees: ReferenceTrees, stem_deltas: np.ndarray) -> ReferenceTrees | None:
+    dead_idx = np.nonzero(stem_deltas < 0.0)[0]
+    if dead_idx.size == 0:
+        return None
+
+    dead_trees = trees[dead_idx]
+    dead_stems = np.minimum(-stem_deltas[dead_idx], np.nan_to_num(trees.stems_per_ha[dead_idx], nan=0.0))
+    dead_trees.stems_per_ha = np.maximum(dead_stems, 0.0)
+    return dead_trees if dead_trees.size > 0 else None
+
+
 # ---------- vectorized predictor ----------
 
 class MetsiGrowPredictor(Predict):
@@ -310,6 +321,11 @@ def grow_metsi_fn(input_: ForestStand, /, **operation_parameters) -> OpTuple[For
     diameters = _nan_to_num(rt.breast_height_diameter, 0.0) + idelta
     heights = _nan_to_num(rt.height, 0.0) + hdelta
     stems = _nan_to_num(rt.stems_per_ha, 0.0) + fdelta
+
+    # Persist model-produced mortality snapshot so deadwood accounting can use
+    # the explicit growth-model mortality signal instead of relying only on
+    # list differencing.
+    stand.deadwood_growth_mortality_trees = _build_growth_mortality_snapshot(rt, fdelta)
 
     # update stand in-place
     update_stand_growth(stand, diameters, heights, stems, step)

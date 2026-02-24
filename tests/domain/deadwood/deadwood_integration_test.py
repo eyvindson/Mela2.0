@@ -37,6 +37,22 @@ def test_inflow_builder_mass_balance_and_partial_stem_loss():
     assert inflows.cwl_c > inflows.fwl_c > inflows.nwl_c
 
 
+def test_growth_model_mortality_signal_overrides_tree_list_diff():
+    prev = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
+    cur = make_reference_trees(["t1"], [100.0], [18.0], [15.0], [1])
+    growth_mortality = make_reference_trees(["t1"], [12.0], [18.0], [15.0], [1])
+
+    inflows = build_deadwood_inflows(
+        prev,
+        cur,
+        growth_mortality_trees=growth_mortality,
+        config=DeadwoodInflowConfig(),
+    )
+
+    assert inflows.mortality_c > 0.0
+    assert inflows.harvest_residue_c == 0.0
+
+
 def test_species_group_specific_residue_defaults():
     removed_pine = make_reference_trees(["p"], [30.0], [20.0], [16.0], [1])
     removed_spruce = make_reference_trees(["s"], [30.0], [20.0], [16.0], [2])

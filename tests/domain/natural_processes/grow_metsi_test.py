@@ -183,6 +183,12 @@ class TestGrowMetsiVecWrapper(unittest.TestCase):
             # tree 2 should be pruned (0.8 - 0.2 = 0.6 < 1.0)
             self.assertEqual(int(rt2.size), 1)
 
+            mortality_snapshot = getattr(out_stand, "deadwood_growth_mortality_trees", None)
+            self.assertIsNotNone(mortality_snapshot)
+            self.assertEqual(int(mortality_snapshot.size), 2)
+            self.assertAlmostEqual(float(mortality_snapshot.stems_per_ha[0]), 5.0, places=6)
+            self.assertAlmostEqual(float(mortality_snapshot.stems_per_ha[1]), 0.2, places=6)
+
             # year advanced by step via our fake updater
             self.assertEqual(out_stand.year, 2005.0)
 

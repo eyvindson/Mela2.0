@@ -1057,6 +1057,12 @@ Current defaults used in code:
 - Output granularity: stand/channel totals in DB (`cwl_c`, `fwl_c`, `nwl_c`, `total_c`) plus source-ledger rows per timestep (`mortality`, `harvest`, `disturbance`)
 - Biodiversity indicator: postponed
 
+Current accounting scope for `input_c`:
+- `input_c` in `deadwood_pools` is the sum of modeled deadwood inflows only.
+- Inflows are currently limited to three sources: `mortality`, `harvest`, and `disturbance`.
+- Continuous litterfall/turnover from living trees (for example annual foliage/branch/fine-root shedding) and understory litter are **not yet modeled** as a separate inflow source in this MVP.
+- As a result, unmanaged stands can show `input_c = 0` in periods where no tree mortality signal is produced by growth/list differencing.
+
 ### Operation: `update_deadwood_pools`
 
 Use as a simulation event treatment after growth/harvest events.

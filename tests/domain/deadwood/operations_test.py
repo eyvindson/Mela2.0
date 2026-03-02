@@ -23,7 +23,7 @@ def make_reference_trees(ids: list[str], stems: list[float], dbh: list[float], h
     return rt
 
 
-def test_update_deadwood_seeds_initial_pool_from_living_biomass():
+def test_update_deadwood_initializes_simple_ratio_pool_once():
     stand = ForestStand(identifier="s1", year=2022)
     stand.reference_trees = make_reference_trees(["t1"], [120.0], [22.0], [18.0], [1])
 
@@ -37,8 +37,16 @@ def test_update_deadwood_seeds_initial_pool_from_living_biomass():
     assert out_stand.deadwood_state.pools.total_c > 0.0
     assert len(collected) == 1
     assert collected[0].pools.total_c > 0.0
-    assert collected[0].fluxes.input_c > 0.0
-    assert collected[0].source_fluxes["mortality"].input_c > 0.0
+    assert np.isclose(collected[0].fluxes.input_c, 0.0)
+
+    prev_total = out_stand.deadwood_state.pools.total_c
+    update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        backend=Yasso07Adapter(prefer_binary=False),
+        deadwood_config=DeadwoodInflowConfig(initial_deadwood_share_of_living_biomass=0.02),
+    )
+    assert stand.deadwood_state.pools.total_c < prev_total
 
 
 def test_update_deadwood_without_initial_share_keeps_previous_bootstrap_behavior():
@@ -53,6 +61,40 @@ def test_update_deadwood_without_initial_share_keeps_previous_bootstrap_behavior
     )
 
     assert collected == []
+
+
+def test_update_deadwood_legacy_initialization_uses_golden_total():
+    stand = ForestStand(identifier="s_legacy", year=2022)
+    stand.site_type_category = 3
+    stand.reference_trees = make_reference_trees(["t1"], [120.0], [22.0], [18.0], [1])
+
+    out_stand, _ = update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        backend=Yasso07Adapter(prefer_binary=False),
+        deadwood_config=DeadwoodInflowConfig(initialization_mode="legacy_distribution_model", carbon_fraction=0.5),
+    )
+
+    expected_total_carbon = 2082.73 * 0.5
+    assert np.isclose(out_stand.deadwood_state.pools.total_c, expected_total_carbon, atol=1e-6)
+    assert len(out_stand.deadwood_state.class_state) == 56
+
+
+def test_update_deadwood_legacy_initialization_requires_site_class():
+    stand = ForestStand(identifier="s_legacy_missing", year=2022)
+    stand.reference_trees = make_reference_trees(["t1"], [120.0], [22.0], [18.0], [1])
+
+    try:
+        update_deadwood_pools_fn(
+            stand,
+            enabled=True,
+            backend=Yasso07Adapter(prefer_binary=False),
+            deadwood_config=DeadwoodInflowConfig(initialization_mode="legacy_distribution_model"),
+        )
+    except ValueError as exc:
+        assert "requires site class" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for missing legacy site class")
 
 
 def test_update_deadwood_consumes_growth_model_mortality_on_first_call():

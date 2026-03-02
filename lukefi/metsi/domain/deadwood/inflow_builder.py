@@ -27,6 +27,8 @@ class DeadwoodInflowConfig:
     residue_share_of_removed_biomass: float = 0.3
     residue_share_by_species_group: dict[str, float] | None = None
     initial_deadwood_share_of_living_biomass: float = 0.02
+    initialization_mode: str = "simple_ratio"
+    legacy_site_class: int | None = None
 
     def validate(self) -> None:
         if self.equation_set.lower() != DEFAULT_EQUATION_SET:
@@ -39,6 +41,10 @@ class DeadwoodInflowConfig:
             raise ValueError("residue_share_of_removed_biomass must be between 0 and 1")
         if not (0.0 <= self.initial_deadwood_share_of_living_biomass <= 1.0):
             raise ValueError("initial_deadwood_share_of_living_biomass must be between 0 and 1")
+        if self.initialization_mode not in {"simple_ratio", "legacy_distribution_model", "none"}:
+            raise ValueError(
+                "initialization_mode must be one of: 'simple_ratio', 'legacy_distribution_model', 'none'"
+            )
 
 
 def _scale_stems(reference_trees: ReferenceTrees, new_stems_per_ha: np.ndarray) -> ReferenceTrees:

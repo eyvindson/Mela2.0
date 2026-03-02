@@ -1077,13 +1077,36 @@ Parameters:
   - `fine_root_fraction` default `0.3` (70/30 coarse/fine roots split)
   - `residue_share_of_removed_biomass` default `0.3` (global fallback)
   - `residue_share_by_species_group` default `{"pine": 0.28, "spruce": 0.32, "broadleaf": 0.35}`
-  - `initial_deadwood_share_of_living_biomass` default `0.02` to seed an initial deadwood stock (set to `0.0` to disable)
+  - `initial_deadwood_share_of_living_biomass` default `0.02` (used by `simple_ratio` mode)
+  - `initialization_mode` default `"simple_ratio"`; supported: `simple_ratio`, `legacy_distribution_model`, `none`
+  - `legacy_site_class` optional override for legacy mode (if omitted, uses `stand.site_type_category`)
 - `backend`: Yasso backend implementation (default `Yasso07Adapter`)
   - `climate_default`: Finland-wide static profile (`3.5°C`, `600 mm`, amplitude `13°C`)
   - `climate_provider`: optional callable for dynamic/stand-wise climate forcing
 - `removed_trees`: optional removed-tree `ReferenceTrees` for harvest residue inflow (if omitted, operation uses `stand.deadwood_removed_trees` when present).
 
 Example control profile: `control_deadwood_mvp.py`.
+
+### Initial deadwood initialization modes
+
+Initial deadwood is the stand state at simulation time 0 before modeled mortality/harvest inflows accumulate.
+
+| Mode | Description | Pools created |
+| --- | --- | --- |
+| `none` | No initialization; deadwood starts from zero. | None |
+| `simple_ratio` | Seeds deadwood as a configurable share of living biomass using Repola components. | `cwl`, `fwl`, `nwl` channel totals |
+| `legacy_distribution_model` | Uses the legacy `DistributiondeadtreemodelLibrary.c` lookup distribution by species / snag / diameter / years-since-death and site class split (`SC < 4` vs `SC >= 4`). | detailed `class_state` + aggregated `cwl` (snags) and `fwl` (downed) pools |
+
+Legacy mapping assumptions in the new simulator:
+
+| Legacy output | New state variable |
+| --- | --- |
+| `bm_aboveground_total` (kg/ha) per class | `DeadwoodClassState.carbon_c = bm_aboveground_total * carbon_fraction` |
+| `snag = 1` class carbon | `deadwood_state.pools.cwl.non_soluble_c` |
+| `snag = 0` class carbon | `deadwood_state.pools.fwl.non_soluble_c` |
+| species code `{1,2,3}` | `species_group` `{pine,spruce,broadleaf}` |
+
+The initialization is applied exactly once per stand, on first deadwood operation call.
 
 ### Reading deadwood development over time from DB
 

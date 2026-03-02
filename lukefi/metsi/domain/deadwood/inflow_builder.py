@@ -4,7 +4,7 @@ import numpy as np
 
 from lukefi.metsi.data.vector_model import ReferenceTrees
 from lukefi.metsi.domain.deadwood.biomass_conversion import RepolaBiomassConverter, RepolaBiomassConverterConfig
-from lukefi.metsi.domain.deadwood.types import DeadwoodInflows
+from lukefi.metsi.domain.deadwood.types import DeadwoodInflowDiagnostics, DeadwoodInflows
 
 
 DEFAULT_EQUATION_SET = "repola"
@@ -156,9 +156,16 @@ def build_deadwood_inflows(
     removed_trees: ReferenceTrees | None = None,
     growth_mortality_trees: ReferenceTrees | None = None,
     config: DeadwoodInflowConfig | None = None,
-) -> DeadwoodInflows:
+    return_diagnostics: bool = False,
+) -> DeadwoodInflows | tuple[DeadwoodInflows, DeadwoodInflowDiagnostics]:
     config = config or DeadwoodInflowConfig()
     config.validate()
+
+    diagnostics = DeadwoodInflowDiagnostics(
+        mortality_source="explicit_growth_model" if growth_mortality_trees is not None else "tree_list_diff_fallback",
+        used_explicit_mortality=growth_mortality_trees is not None,
+        used_fallback_diff=growth_mortality_trees is None,
+    )
 
     if growth_mortality_trees is not None:
         mortality_cwl, mortality_fwl, mortality_nwl = mortality_inflow_from_growth_model(growth_mortality_trees, config)
@@ -168,7 +175,7 @@ def build_deadwood_inflows(
     if removed_trees is not None:
         harvest_cwl, harvest_fwl, harvest_nwl = harvest_residue_inflow_from_removed_trees(removed_trees, config)
 
-    return DeadwoodInflows(
+    inflows = DeadwoodInflows(
         mortality_cwl_c=mortality_cwl,
         mortality_fwl_c=mortality_fwl,
         mortality_nwl_c=mortality_nwl,
@@ -176,3 +183,6 @@ def build_deadwood_inflows(
         harvest_fwl_c=harvest_fwl,
         harvest_nwl_c=harvest_nwl,
     )
+    if return_diagnostics:
+        return inflows, diagnostics
+    return inflows

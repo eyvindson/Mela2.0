@@ -294,6 +294,34 @@ class TestGrowMottiDLLVec(unittest.TestCase):
         self.assertEqual(trees_py[0]["spe"], 3)
         self.assertEqual(trees_py[1]["spe"], 6)  # alder collapsed
 
+
+    def test_vector_grow_exposes_deadwood_growth_mortality_snapshot(self) -> None:
+        rt = make_rt(
+            stems=(100.0, 80.0),
+            d=(10.0, 12.0),
+            h=(12.0, 14.0),
+            species=(2, 3),
+        )
+        stand = make_stand_vec(rt)
+
+        class MortalityDLL(FakeDLL):
+            def grow(self, *args: Any, **kwargs: Any) -> GrowthDeltas:  # noqa: D401
+                return GrowthDeltas(
+                    tree_ids=[1],
+                    trees_id=[+0.2],
+                    trees_ih=[+0.4],
+                    trees_if=[-5.0],
+                )
+
+        pred = grow_motti.MottiDLLPredictor(stand, dll=MortalityDLL())  # type: ignore[arg-type]
+        out_stand, _ = grow_motti.grow_motti_dll_fn(stand, predictor=pred, step=5)  # type: ignore[arg-type]
+
+        mortality = getattr(out_stand, "deadwood_growth_mortality_trees", None)
+        self.assertIsNotNone(mortality)
+        assert mortality is not None
+        self.assertEqual(mortality.size, 2)
+        self.assertAlmostEqual(float(mortality.stems_per_ha.sum()), 85.0, places=6)
+
     def test_vector_grow_applies_deltas_and_handles_deaths(self) -> None:
         # Two trees; DLL returns growth only for tree 1; tree 2 "dies" (missing -> stems=0)
         rt = make_rt(

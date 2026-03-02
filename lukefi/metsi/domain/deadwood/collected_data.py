@@ -2,6 +2,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import override
 
+from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowDiagnostics
 from lukefi.metsi.domain.deadwood.types import DeadwoodFluxes, DeadwoodInflows, DeadwoodPools
 from lukefi.metsi.sim.collected_data import CollectedData
 
@@ -13,6 +14,7 @@ class DeadwoodPoolsData(CollectedData):
     inflows: DeadwoodInflows
     year: int
     source_fluxes: dict[str, DeadwoodFluxes] | None = None
+    inflow_diagnostics: DeadwoodInflowDiagnostics | None = None
 
     @classmethod
     @override
@@ -46,6 +48,9 @@ class DeadwoodPoolsData(CollectedData):
                 input_c REAL,
                 decomposition_c REAL,
                 net_change_c REAL,
+                mortality_source TEXT,
+                used_explicit_mortality INTEGER,
+                used_fallback_diff INTEGER,
                 PRIMARY KEY (node, stand, year),
                 FOREIGN KEY (node, stand) REFERENCES nodes(identifier, stand)
             )
@@ -73,7 +78,7 @@ class DeadwoodPoolsData(CollectedData):
         cur.execute(
             """
             INSERT INTO deadwood_pools
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 node_str,
@@ -101,6 +106,9 @@ class DeadwoodPoolsData(CollectedData):
                 self.fluxes.input_c,
                 self.fluxes.decomposition_c,
                 self.fluxes.net_change_c,
+                (self.inflow_diagnostics.mortality_source if self.inflow_diagnostics else "tree_list_diff_fallback"),
+                int(self.inflow_diagnostics.used_explicit_mortality) if self.inflow_diagnostics else 0,
+                int(self.inflow_diagnostics.used_fallback_diff) if self.inflow_diagnostics else 1,
             ),
         )
         cur.executemany(

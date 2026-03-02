@@ -104,6 +104,15 @@ class DeadwoodPools:
         )
 
 
+
+
+@dataclass
+class DeadwoodInflowDiagnostics:
+    mortality_source: str = "tree_list_diff_fallback"
+    used_explicit_mortality: bool = False
+    used_fallback_diff: bool = True
+
+
 @dataclass
 class DeadwoodFluxes:
     input_c: float = 0.0
@@ -126,3 +135,4 @@ class DeadwoodState:
     latest_fluxes: DeadwoodFluxes = field(default_factory=DeadwoodFluxes)
     source_pools: dict[str, DeadwoodPools] = field(default_factory=dict)
     class_state: list[DeadwoodClassState] = field(default_factory=list)
+    latest_inflow_diagnostics: DeadwoodInflowDiagnostics = field(default_factory=DeadwoodInflowDiagnostics)

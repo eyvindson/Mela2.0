@@ -26,6 +26,13 @@ def _resolve_removed_trees(stand: ForestStand, **operation_parameters) -> Refere
 
 
 def _resolve_growth_mortality_trees(stand: ForestStand) -> ReferenceTrees | None:
+    """Resolve one-step mortality payload produced by growth operations.
+
+    Contract:
+    - payload type follows ReferenceTrees schema
+    - stems_per_ha represent dead stems/ha for the current simulation step
+    - payload is consumed once and then cleared to avoid double counting
+    """
     mortality_trees = getattr(stand, "deadwood_growth_mortality_trees", None)
     if mortality_trees is not None:
         stand.deadwood_growth_mortality_trees = None
@@ -69,12 +76,13 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
             "disturbance": DeadwoodState().pools,
         }
 
-    measured_inflows = build_deadwood_inflows(
+    measured_inflows, inflow_diagnostics = build_deadwood_inflows(
         previous_trees=stand.deadwood_previous_trees,
         current_trees=stand.reference_trees,
         removed_trees=_resolve_removed_trees(stand, **operation_parameters),
         growth_mortality_trees=_resolve_growth_mortality_trees(stand),
         config=config,
+        return_diagnostics=True,
     )
     inflows = DeadwoodInflows(
         mortality_cwl_c=measured_inflows.mortality_cwl_c,
@@ -126,10 +134,11 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
     stand.deadwood_state.class_state = update_class_state(stand.deadwood_state.class_state, inflows, step_years)
     stand.deadwood_state.pools = pools
     stand.deadwood_state.latest_fluxes = fluxes
+    stand.deadwood_state.latest_inflow_diagnostics = inflow_diagnostics
     stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
 
     stand_year = int(getattr(stand, "year", 0) or 0)
-    return stand, [DeadwoodPoolsData(pools=pools, fluxes=fluxes, inflows=inflows, source_fluxes=source_fluxes, year=stand_year)]
+    return stand, [DeadwoodPoolsData(pools=pools, fluxes=fluxes, inflows=inflows, source_fluxes=source_fluxes, inflow_diagnostics=inflow_diagnostics, year=stand_year)]
 
 
 update_deadwood_pools = Treatment(

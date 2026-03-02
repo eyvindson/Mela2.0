@@ -351,6 +351,36 @@ def species_to_motti(spe: int) -> int:
     raise ValueError(f"Unsupported tree species code: {int(spe)}")
 
 
+def _build_growth_mortality_snapshot_from_motti(rt: ReferenceTrees, ids: np.ndarray, id_to_delta_f: dict[int, float]) -> ReferenceTrees | None:
+    """Build one-step mortality payload for deadwood integration from Motti outputs.
+
+    The returned payload follows the deadwood handoff contract: stems_per_ha stores
+    dead stems/ha caused by growth-model mortality in this timestep.
+    """
+    dead_indices: list[int] = []
+    dead_stems: list[float] = []
+
+    for idx, tid in enumerate(ids.tolist()):
+        base_stems = float(np.nan_to_num(rt.stems_per_ha[idx], nan=0.0))
+        if tid in id_to_delta_f:
+            delta = float(id_to_delta_f[tid])
+            if delta < 0.0:
+                loss = min(-delta, base_stems)
+                if loss > 0.0:
+                    dead_indices.append(idx)
+                    dead_stems.append(loss)
+        elif base_stems > 0.0:
+            dead_indices.append(idx)
+            dead_stems.append(base_stems)
+
+    if not dead_indices:
+        return None
+
+    dead_trees = rt[np.array(dead_indices, dtype=int)]
+    dead_trees.stems_per_ha = np.array(dead_stems, dtype=float)
+    return dead_trees if dead_trees.size > 0 else None
+
+
 def grow_motti_dll_fn(input_: ForestStand, /, **operation_parameters) -> OpTuple[ForestStand]:
     """
     Vector-only Motti grow:
@@ -422,6 +452,10 @@ def grow_motti_dll_fn(input_: ForestStand, /, **operation_parameters) -> OpTuple
             f_new[idx] = max(base_f[idx] + id_to_delta_f[tid], 0.0)
         else:
             f_new[idx] = 0.0
+
+    # Persist explicit one-step mortality payload for deadwood accounting
+    # before growth update/pruning can obscure which trees died.
+    stand.deadwood_growth_mortality_trees = _build_growth_mortality_snapshot_from_motti(rt, ids, id_to_delta_f)
 
     # Apply vectorized update (also advances ages etc. inside util)
     update_stand_growth(stand, d_new, h_new, f_new, step)

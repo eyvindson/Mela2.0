@@ -62,3 +62,22 @@ def test_deadwood_pools_store_optional_awenh_channel_columns():
         "SELECT cwl_acid_c, cwl_humus_c, cwl_c FROM deadwood_pools"
     ).fetchone()
     assert awenh_row == (1.0, 2.0, 3.0)
+
+
+def test_deadwood_pools_store_mortality_diagnostics_columns():
+    db = sqlite3.connect(":memory:")
+    _init_nodes_table(db)
+    DeadwoodPoolsData.init_db_table(db)
+
+    datum = DeadwoodPoolsData(
+        pools=DeadwoodPools(),
+        fluxes=DeadwoodFluxes(),
+        inflows=DeadwoodInflows(),
+        year=2040,
+    )
+    datum.output_to_db(db, "0-0", "stand_1")
+
+    row = db.execute(
+        "SELECT mortality_source, used_explicit_mortality, used_fallback_diff FROM deadwood_pools"
+    ).fetchone()
+    assert row == ("tree_list_diff_fallback", 0, 1)

@@ -1,9 +1,11 @@
 import numpy as np
 import pytest
 
+from lukefi.metsi.data.model import ForestStand
 from lukefi.metsi.data.vector_model import ReferenceTrees
 from lukefi.metsi.domain.deadwood.biomass_conversion import RepolaBiomassConverter
 from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows
+from lukefi.metsi.domain.deadwood.operations import update_deadwood_pools_fn
 from lukefi.metsi.domain.deadwood.types import ChannelAWENH, DeadwoodInflows, DeadwoodPools
 from lukefi.metsi.domain.deadwood.yasso_backend import FINLAND_STATIC_CLIMATE, Yasso07Adapter, YassoClimate
 
@@ -119,3 +121,28 @@ def test_climate_configurable_but_finland_default_available():
 
     assert FINLAND_STATIC_CLIMATE.temperature_c == 3.5
     assert warm_updated.total_c < cold_updated.total_c
+
+
+def test_legacy_initial_state_integration_preserves_pool_class_consistency():
+    stand = ForestStand(identifier="int_legacy", year=2020)
+    stand.site_type_category = 5
+    stand.reference_trees = make_reference_trees(["t1"], [150.0], [24.0], [20.0], [1])
+
+    update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        backend=Yasso07Adapter(annual_decay_rate=0.0, prefer_binary=False),
+        deadwood_config=DeadwoodInflowConfig(initialization_mode="legacy_distribution_model"),
+    )
+
+    class_total = sum(item.carbon_c for item in stand.deadwood_state.class_state)
+    assert np.isclose(class_total, stand.deadwood_state.pools.total_c)
+    assert stand.deadwood_state.source_pools["mortality"].total_c == stand.deadwood_state.pools.total_c
+
+    update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        backend=Yasso07Adapter(annual_decay_rate=0.0, prefer_binary=False),
+        deadwood_config=DeadwoodInflowConfig(initialization_mode="legacy_distribution_model"),
+    )
+    assert np.isclose(class_total, sum(item.carbon_c for item in stand.deadwood_state.class_state))

@@ -4,7 +4,8 @@ from lukefi.metsi.data.model import ForestStand
 from lukefi.metsi.data.vector_model import ReferenceTrees
 from lukefi.metsi.domain.deadwood.class_dynamics import update_class_state
 from lukefi.metsi.domain.deadwood.collected_data import DeadwoodPoolsData
-from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows, estimate_initial_deadwood_channels
+from lukefi.metsi.domain.deadwood.inflow_builder import DeadwoodInflowConfig, build_deadwood_inflows
+from lukefi.metsi.domain.deadwood.initialization import initialize_deadwood
 from lukefi.metsi.domain.deadwood.types import DeadwoodFluxes, DeadwoodInflows, DeadwoodState
 from lukefi.metsi.domain.deadwood.yasso_backend import Yasso07Adapter, YassoClimate
 from lukefi.metsi.sim.collected_data import OpTuple
@@ -54,20 +55,11 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
     if not hasattr(stand, "deadwood_state"):
         stand.deadwood_state = DeadwoodState()
 
-    bootstrap_inflows = DeadwoodInflows()
-    bootstrapped_previous_trees = False
     if not hasattr(stand, "deadwood_previous_trees"):
-        bootstrapped_previous_trees = True
+        initialize_deadwood(stand, config)
         stand.deadwood_previous_trees = _copy_reference_trees(stand.reference_trees)
-        if stand.deadwood_state.pools.total_c <= 0.0:
-            seed_cwl, seed_fwl, seed_nwl = estimate_initial_deadwood_channels(stand.reference_trees, config)
-            bootstrap_inflows = DeadwoodInflows(
-                mortality_cwl_c=seed_cwl,
-                mortality_fwl_c=seed_fwl,
-                mortality_nwl_c=seed_nwl,
-            )
 
-    if bootstrapped_previous_trees and (stand.deadwood_state.pools.total_c + bootstrap_inflows.total_c) <= 0.0:
+    if stand.deadwood_state.pools.total_c <= 0.0 and stand.deadwood_previous_trees.size == 0:
         return stand, []
 
     if stand.deadwood_state.pools.total_c > 0.0 and not stand.deadwood_state.source_pools:
@@ -85,9 +77,9 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
         config=config,
     )
     inflows = DeadwoodInflows(
-        mortality_cwl_c=measured_inflows.mortality_cwl_c + bootstrap_inflows.mortality_cwl_c,
-        mortality_fwl_c=measured_inflows.mortality_fwl_c + bootstrap_inflows.mortality_fwl_c,
-        mortality_nwl_c=measured_inflows.mortality_nwl_c + bootstrap_inflows.mortality_nwl_c,
+        mortality_cwl_c=measured_inflows.mortality_cwl_c,
+        mortality_fwl_c=measured_inflows.mortality_fwl_c,
+        mortality_nwl_c=measured_inflows.mortality_nwl_c,
         harvest_cwl_c=measured_inflows.harvest_cwl_c,
         harvest_fwl_c=measured_inflows.harvest_fwl_c,
         harvest_nwl_c=measured_inflows.harvest_nwl_c,
@@ -95,6 +87,9 @@ def update_deadwood_pools_fn(input_: ForestStand, /, **operation_parameters) -> 
         disturbance_fwl_c=measured_inflows.disturbance_fwl_c,
         disturbance_nwl_c=measured_inflows.disturbance_nwl_c,
     )
+
+    if stand.deadwood_state.pools.total_c <= 0.0 and inflows.total_c <= 0.0:
+        return stand, []
 
     source_inflows = {
         "mortality": DeadwoodInflows(

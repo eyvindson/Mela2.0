@@ -88,6 +88,18 @@ def _run_chunk(task: ChunkTask) -> tuple[int, int]:
     ]
     print(f"[chunk {task.chunk_index}] Running: {' '.join(cmd)}", flush=True)
     result = subprocess.run(cmd, check=False)
+    if result.returncode == 0:
+        db_candidates = sorted(task.output_dir.glob("*.db"))
+        target_db = task.output_dir / f"simulation_results_{task.chunk_gpkg.stem}.db"
+        if db_candidates:
+            source_db = next((p for p in db_candidates if p.name.startswith("simulation_results")), db_candidates[0])
+            if source_db != target_db:
+                if target_db.exists():
+                    target_db.unlink()
+                source_db.rename(target_db)
+                print(f"[chunk {task.chunk_index}] Renamed DB -> {target_db.name}", flush=True)
+        else:
+            print(f"[chunk {task.chunk_index}] Warning: no .db file found in {task.output_dir}", flush=True)
     return task.chunk_index, result.returncode
 
 

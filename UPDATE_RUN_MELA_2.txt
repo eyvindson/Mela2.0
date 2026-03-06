@@ -1,0 +1,13 @@
+To run the multiprocessor version of MELA:
+
+First activate python:
+
+source .venv/bin/activate
+
+
+python run_gpkg_multiprocess.py   --input data/forest_data/MV_K3423G.gpkg   --control control_dead_Y.py   --output-root /data/out   --cores 8 &
+
+--input: data file you are interested in running
+--control: control file of MELA you want to run
+--output-root: where you want the output to go, a folder
+--cores: How many cores the computer has, or how many you want to use

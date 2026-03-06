@@ -26,6 +26,7 @@ from typing import Sequence
 class ChunkTask:
     chunk_index: int
     chunk_gpkg: Path
+    input_stem: str
     output_dir: Path
     control_file: Path
     mela2_cmd: str
@@ -88,6 +89,18 @@ def _run_chunk(task: ChunkTask) -> tuple[int, int]:
     ]
     print(f"[chunk {task.chunk_index}] Running: {' '.join(cmd)}", flush=True)
     result = subprocess.run(cmd, check=False)
+    if result.returncode == 0:
+        db_candidates = sorted(task.output_dir.glob("*.db"))
+        target_db = task.output_dir / f"simulation_results_{task.input_stem}_chunk_{task.chunk_index:03d}.db"
+        if db_candidates:
+            source_db = next((p for p in db_candidates if p.name.startswith("simulation_results")), db_candidates[0])
+            if source_db != target_db:
+                if target_db.exists():
+                    target_db.unlink()
+                source_db.rename(target_db)
+                print(f"[chunk {task.chunk_index}] Renamed DB -> {target_db.name}", flush=True)
+        else:
+            print(f"[chunk {task.chunk_index}] Warning: no .db file found in {task.output_dir}", flush=True)
     return task.chunk_index, result.returncode
 
 
@@ -131,6 +144,7 @@ def main() -> int:
             ChunkTask(
                 chunk_index=idx,
                 chunk_gpkg=chunk_gpkg,
+                input_stem=input_path.stem,
                 output_dir=out_dir,
                 control_file=control_path,
                 mela2_cmd=args.mela2_cmd,

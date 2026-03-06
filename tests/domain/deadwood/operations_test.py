@@ -112,6 +112,20 @@ def test_update_deadwood_consumes_growth_model_mortality_on_first_call():
     assert len(collected) == 1
     assert collected[0].inflows.mortality_c > 0.0
     assert collected[0].source_fluxes["mortality"].input_c > 0.0
+    assert collected[0].inflow_diagnostics is not None
+    assert collected[0].inflow_diagnostics.used_explicit_mortality is True
+    assert collected[0].inflow_diagnostics.used_fallback_diff is False
+
+    _, collected_again = update_deadwood_pools_fn(
+        stand,
+        enabled=True,
+        deadwood_config=DeadwoodInflowConfig(initial_deadwood_share_of_living_biomass=0.02),
+        backend=Yasso07Adapter(prefer_binary=False),
+    )
+    assert len(collected_again) == 1
+    assert collected_again[0].inflow_diagnostics is not None
+    assert collected_again[0].inflow_diagnostics.used_explicit_mortality is False
+    assert collected_again[0].inflow_diagnostics.used_fallback_diff is True
 
 
 def test_seeded_no_management_branch_decomposes_without_new_inputs():
